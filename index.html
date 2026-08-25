@@ -338,4 +338,312 @@
                    <div className="absolute inset-0 bg-gradient-to-t from-gray-900 to-transparent"></div>
                    <h3 className="absolute bottom-2 left-4 text-xl font-black text-white drop-shadow-md">{d.name}</h3>
                  </div>
-                 <div className="p-3 bg-gray-900
+                 <div className="p-3 bg-gray-900 grid grid-cols-2 gap-2 text-sm font-bold">
+                   <button onClick={() => navigate('deckbuilder', d)} className="bg-blue-600 text-white rounded py-2">Modifica</button>
+                   <button onClick={() => navigate('printview', d)} className="bg-purple-600 text-white rounded py-2">Stampa Proxy PDF</button>
+                   <button onClick={() => deleteDeck(d.id)} className="col-span-2 bg-red-800 text-white rounded py-2 mt-2">Elimina</button>
+                 </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    };
+
+    const PrintView = ({deck, navigate}) => {
+      if(!deck) return null;
+      return (
+        <div className="print-container w-full h-full bg-white text-black p-4 absolute top-0 left-0 z-50">
+          <div className="no-print mb-4 p-4 bg-gray-100 rounded border border-gray-300 flex justify-between items-center">
+            <p className="font-bold text-gray-800">Usa "Stampa -> Salva come PDF".<br/>(Carte formattate a 63x88mm).</p>
+            <div className="space-x-2">
+              <button onClick={() => navigate('mydecks')} className="px-4 py-2 bg-gray-500 text-white rounded">Indietro</button>
+              <button onClick={() => window.print()} className="px-4 py-2 bg-blue-600 text-white font-bold rounded">Stampa</button>
+            </div>
+          </div>
+          <div className="print-grid">
+            {deck.cards.map((c, i) => <img key={i} src={c.proxyImage || c.image} className="print-card shadow-sm border border-gray-300" />)}
+          </div>
+        </div>
+      );
+    };
+
+    // --- PROXY CREATOR (RIVOLUZIONATO CON OVERLAY) ---
+    const ProxyCreator = () => {
+      const [baseQuery, setBaseQuery] = useState("");
+      const [baseCard, setBaseCard] = useState(null);
+      const [customName, setCustomName] = useState("");
+      const [customImg, setCustomImg] = useState("");
+      
+      const searchBase = async () => {
+        try {
+          const res = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(baseQuery)}`);
+          const c = await res.json();
+          if(c.id) {
+             let imgUrl = c.image_uris ? c.image_uris.normal : (c.card_faces ? c.card_faces[0].image_uris.normal : null);
+             setBaseCard({ name: c.name, img: imgUrl });
+             setCustomName(""); setCustomImg("");
+          } else alert("Carta non trovata");
+        } catch(e) {}
+      };
+
+      const handleImage = (e) => {
+        const file = e.target.files[0];
+        if(file) {
+          const r = new FileReader();
+          r.onload = (ev) => setCustomImg(ev.target.result);
+          r.readAsDataURL(file);
+        }
+      };
+
+      return (
+        <div className="max-w-md mx-auto space-y-4">
+          <div className="bg-gray-800 p-4 rounded-xl border border-gray-700 shadow-md">
+            <h2 className="text-xl font-bold text-purple-400 mb-2">Proxy Creator</h2>
+            <p className="text-xs text-gray-400 mb-4">Crea una carta alterata. L'app posizionerà la tua foto e il tuo titolo esattamente sopra l'immagine e il nome della vera carta di Magic, mantenendo intatte regole e costo di mana!</p>
+            
+            <div className="flex gap-2 mb-4">
+              <input type="text" placeholder="Cerca Carta Reale..." value={baseQuery} onChange={e => setBaseQuery(e.target.value)} className="flex-1 bg-gray-900 border border-gray-600 p-2 rounded text-white" />
+              <button onClick={searchBase} className="bg-purple-600 px-3 rounded text-white font-bold">Cerca</button>
+            </div>
+            
+            {baseCard && (
+              <div className="space-y-4 animate-fade">
+                <input type="text" placeholder="Nuovo Titolo (Nickname)" value={customName} onChange={e => setCustomName(e.target.value)} className="w-full bg-gray-900 border border-gray-600 p-2 rounded text-white font-bold" />
+                <label className="block w-full bg-gray-700 hover:bg-gray-600 text-center py-3 rounded cursor-pointer font-bold text-sm text-white">
+                  📸 Carica la tua Illustrazione
+                  <input type="file" accept="image/*" className="hidden" onChange={handleImage} />
+                </label>
+                
+                {/* LA MAGIA DELL'OVERLAY CSS */}
+                <div className="relative w-full aspect-[63/88] rounded-xl overflow-hidden shadow-2xl bg-black border border-gray-600 mt-6">
+                  {/* Livello 0: La Carta Reale */}
+                  <img src={baseCard.img} className="absolute inset-0 w-full h-full" />
+                  
+                  {/* Livello 1: La Tua Illustrazione (Posizionata matematicamente sull'Art Box standard MTG) */}
+                  {customImg && (
+                    <div className="absolute top-[11.5%] left-[8%] w-[84%] h-[44%] bg-black z-10 overflow-hidden shadow-inner">
+                      <img src={customImg} className="w-full h-full object-cover" />
+                    </div>
+                  )}
+
+                  {/* Livello 2: Il Nuovo Nome (Copre il nome vecchio ma lascia visibile il mana) */}
+                  {customName && (
+                    <div className="absolute top-[4.5%] left-[7%] w-[65%] h-[5%] bg-[#1a1a1a] z-20 flex items-center px-2 rounded-sm border border-gray-500 shadow-md">
+                      <span className="text-white font-bold text-xs tracking-wide truncate">{customName}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="text-xs text-gray-500 text-center bg-gray-900 p-2 rounded">
+                  💡 Fai uno <b>Screenshot</b> di questa carta tagliando i bordi del telefono! Potrai caricarla nel Deckbuilder per sostituire l'immagine originale.
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    // --- GAME UTILITY (LIFE TRACKER - RIPARATO) ---
+    const GameUtility = () => {
+      const [setup, setSetup] = useState(true);
+      const [numPlayers, setNumPlayers] = useState(4);
+      const [startLife, setStartLife] = useState(40);
+      const [players, setPlayers] = useState([]);
+
+      const startGame = () => {
+        let newPlayers = [];
+        for(let i=1; i<=numPlayers; i++) {
+          let cmdDmg = {};
+          for(let j=1; j<=numPlayers; j++) { if(i!==j) cmdDmg[`P${j}`] = 0; }
+          newPlayers.push({ id: `P${i}`, name: `Player ${i}`, life: startLife, poison: 0, cmdCasts: 0, emblems: 0, immune: false, cmdDmg: cmdDmg });
+        }
+        setPlayers(newPlayers);
+        setSetup(false);
+      };
+
+      const updateStat = (playerId, stat, amount, opponentId = null) => {
+        setPlayers(prev => prev.map(p => {
+          if (p.id !== playerId) return p;
+          if (opponentId) return { ...p, cmdDmg: { ...p.cmdDmg, [opponentId]: Math.max(0, p.cmdDmg[opponentId] + amount) } };
+          return { ...p, [stat]: Math.max(0, p[stat] + amount) };
+        }));
+      };
+
+      const toggleImmunity = (playerId) => { setPlayers(prev => prev.map(p => p.id === playerId ? { ...p, immune: !p.immune } : p)); };
+
+      if (setup) return (
+        <div className="max-w-md mx-auto bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700 mt-4">
+          <h2 className="text-2xl font-bold mb-6 text-center text-red-500">Setup Partita</h2>
+          <div className="mb-4">
+            <label className="block text-gray-400 mb-2">Numero Giocatori (1-6)</label>
+            <input type="number" min="1" max="6" value={numPlayers} onChange={e => setNumPlayers(parseInt(e.target.value))} className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white text-center text-xl" />
+          </div>
+          <div className="mb-6">
+            <label className="block text-gray-400 mb-2">Punti Vita Iniziali</label>
+            <select value={startLife} onChange={e => setStartLife(parseInt(e.target.value))} className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white text-center text-xl">
+              <option value={40}>40 (Commander)</option>
+              <option value={20}>20 (Standard)</option>
+              <option value={30}>30 (Brawl/2HG)</option>
+            </select>
+          </div>
+          <button onClick={startGame} className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-xl text-lg shadow-lg">Inizia Partita</button>
+        </div>
+      );
+
+      const gridClass = players.length === 1 ? 'grid-cols-1' : (players.length <= 4 ? 'grid-cols-2' : 'grid-cols-2 lg:grid-cols-3');
+
+      return (
+        <div className={`grid ${gridClass} gap-2 h-[80vh]`}>
+          {players.map(p => <PlayerCard key={p.id} player={p} updateStat={updateStat} toggleImmunity={toggleImmunity} opponents={players.filter(op => op.id !== p.id)} />)}
+        </div>
+      );
+    };
+
+    const PlayerCard = ({ player, updateStat, toggleImmunity, opponents }) => {
+      const [viewStats, setViewStats] = useState(false); // Sostituisce l'animazione 3D
+      
+      const isDead = (player.life <= 0 || player.poison >= 10 || Object.values(player.cmdDmg).some(dmg => dmg >= 21)) && !player.immune;
+
+      // Timer Riparato (2 secondi netti)
+      const handleHold = (stat, amount, oppId = null) => {
+        let timer;
+        return {
+          onPointerDown: (e) => {
+            e.preventDefault(); 
+            updateStat(player.id, stat, amount, oppId); // Scatto iniziale
+            timer = setTimeout(() => { 
+              updateStat(player.id, stat, amount * 9, oppId); 
+              if(navigator.vibrate) navigator.vibrate(100); 
+            }, 2000); // 2000ms = 2 secondi veri
+          },
+          onPointerUp: () => clearTimeout(timer),
+          onPointerLeave: () => clearTimeout(timer),
+          onContextMenu: (e) => e.preventDefault() // Blocca il menù del telefono
+        };
+      };
+
+      // VISTA RETRO (Statistiche)
+      if (viewStats) {
+        return (
+          <div className="w-full h-full min-h-[250px] flex flex-col rounded-xl border-2 border-blue-600 bg-gray-800 overflow-hidden shadow-lg p-2 animate-fade">
+            <div className="flex justify-between items-center border-b border-gray-700 pb-1 mb-2">
+              <span className="font-bold text-sm text-blue-400">Statistiche {player.name}</span>
+              <button onClick={() => setViewStats(false)} className="p-1 bg-blue-700 rounded-full text-white shadow"><Icons.Back/></button>
+            </div>
+            
+            <div className="overflow-y-auto space-y-3 pb-2 text-sm flex-1">
+              <div className="bg-gray-900 p-2 rounded">
+                <p className="text-xs text-red-400 font-bold mb-2 uppercase">⚔️ Danni Comandante Subiti Da:</p>
+                {opponents.map(opp => (
+                   <StatRow key={opp.id} label={opp.name} value={player.cmdDmg[opp.id]} handlers={{sub: handleHold('cmdDmg', -1, opp.id), add: handleHold('cmdDmg', 1, opp.id)}} />
+                ))}
+              </div>
+
+              <div className="space-y-2">
+                <StatRow label="💧 Veleno" value={player.poison} handlers={{sub: handleHold('poison', -1), add: handleHold('poison', 1)}} />
+                <StatRow label="⚔️ Lanci Cmd" value={player.cmdCasts} handlers={{sub: handleHold('cmdCasts', -1), add: handleHold('cmdCasts', 1)}} />
+                <StatRow label="🛡️ Emblemi" value={player.emblems} handlers={{sub: handleHold('emblems', -1), add: handleHold('emblems', 1)}} />
+              </div>
+            </div>
+            
+            <button onClick={() => toggleImmunity(player.id)} className={`w-full py-2 mt-2 text-sm font-bold rounded ${player.immune ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>
+              {player.immune ? '🛡️ Immunità Attiva' : 'Attiva Immunità Sconfitta'}
+            </button>
+          </div>
+        );
+      }
+
+      // VISTA FRONTE (Vita)
+      return (
+        <div className={`w-full h-full min-h-[250px] flex flex-col rounded-xl border-2 relative animate-fade ${isDead ? 'border-red-600 bg-red-950' : 'border-gray-700 bg-gray-800'} overflow-hidden shadow-lg`}>
+          {isDead && <div className="absolute inset-0 flex items-center justify-center text-8xl opacity-30 pointer-events-none">💀</div>}
+          {player.immune && <div className="absolute inset-0 flex items-center justify-center text-8xl opacity-20 pointer-events-none text-blue-500">🛡️</div>}
+          
+          <div className="flex justify-between items-center bg-gray-900/80 p-2 z-10 border-b border-gray-700">
+            <span className="font-bold text-gray-200">{player.name}</span>
+            <button onClick={() => setViewStats(true)} className="px-2 py-1 bg-gray-700 border border-gray-600 rounded text-xs text-white shadow font-bold">Statistiche ⚙️</button>
+          </div>
+          
+          <div className="flex-1 flex items-center justify-between px-1 z-10">
+            <button {...handleHold('life', -1)} className="w-16 h-full flex items-center justify-center text-5xl font-bold text-red-400 active:bg-red-500/20 rounded-l">-</button>
+            <div className="text-6xl font-black text-white">{player.life}</div>
+            <button {...handleHold('life', 1)} className="w-16 h-full flex items-center justify-center text-5xl font-bold text-green-400 active:bg-green-500/20 rounded-r">+</button>
+          </div>
+        </div>
+      );
+    };
+
+    const StatRow = ({ label, value, handlers }) => (
+      <div className="flex justify-between items-center bg-gray-800 rounded px-2 py-1 mt-1">
+        <span className="text-gray-300 font-bold">{label}</span>
+        <div className="flex items-center space-x-3">
+          <button {...handlers.sub} className="w-8 h-8 bg-red-900/50 rounded font-bold text-red-400 active:bg-red-800">-</button>
+          <span className="w-4 text-center font-bold text-white">{value}</span>
+          <button {...handlers.add} className="w-8 h-8 bg-green-900/50 rounded font-bold text-green-400 active:bg-green-800">+</button>
+        </div>
+      </div>
+    );
+
+    // --- DICE ROLLER ---
+    const DiceRoller = () => {
+      const [numPlayers, setNumPlayers] = useState(4);
+      const [results, setResults] = useState([]);
+      const [winnerMessage, setWinnerMessage] = useState("");
+
+      const rollDice = () => {
+        let rolls = []; let max = 0;
+        for(let i=1; i<=numPlayers; i++) {
+          const roll = Math.floor(Math.random() * 20) + 1;
+          rolls.push({ player: `Player ${i}`, roll: roll });
+          if(roll > max) max = roll;
+        }
+        setResults(rolls);
+        const winners = rolls.filter(r => r.roll === max);
+        if(winners.length === 1) setWinnerMessage(`🎉 Inizia: ${winners[0].player}!`);
+        else setWinnerMessage(`Pareggio tra: ${winners.map(w=>w.player).join(', ')}. Ritirate!`);
+      };
+
+      return (
+        <div className="max-w-md mx-auto bg-gray-800 p-6 rounded-xl border border-gray-700 mt-10">
+          <h2 className="text-2xl font-bold mb-6 text-center text-purple-400">Tira il Dado (D20)</h2>
+          <label className="block text-gray-400 mb-2">Numero Giocatori</label>
+          <input type="number" min="2" max="6" value={numPlayers} onChange={e => setNumPlayers(parseInt(e.target.value))} className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white text-center mb-6" />
+          <button onClick={rollDice} className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 rounded-xl text-lg mb-6 shadow-lg">Tira il Dado!</button>
+          {results.length > 0 && (
+            <div className="space-y-2">
+              {results.map((r, i) => (
+                <div key={i} className="flex justify-between p-3 bg-gray-900 rounded border border-gray-700">
+                  <span className="font-bold text-gray-300">{r.player}</span>
+                  <span className="font-black text-white text-xl">{r.roll}</span>
+                </div>
+              ))}
+              <div className="mt-4 p-3 bg-green-900/40 border border-green-500 rounded text-center font-bold text-green-400">{winnerMessage}</div>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    // --- ARBITRO AI ---
+    const RulesAI = () => {
+      const [question, setQuestion] = useState("");
+      const askJudge = () => {
+        if(!question) return;
+        const prompt = `Sei un Arbitro Livello 3 di Magic: The Gathering. Rispondi in italiano a questo dubbio: "${question}"`;
+        window.open(`https://gemini.google.com/app?q=${encodeURIComponent(prompt)}`, '_blank');
+      };
+      return (
+        <div className="max-w-md mx-auto bg-gray-800 p-6 rounded-xl border border-gray-700 mt-10 text-center">
+          <h2 className="text-2xl font-bold mb-4 text-green-400">Arbitro AI</h2>
+          <textarea className="w-full h-32 bg-gray-900 border border-gray-600 rounded p-3 text-white mb-4" placeholder="Es: Se attacco con..." value={question} onChange={(e) => setQuestion(e.target.value)}></textarea>
+          <button onClick={askJudge} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl flex justify-center w-full shadow-lg">Chiedi all'Arbitro</button>
+        </div>
+      );
+    };
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
