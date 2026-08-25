@@ -93,7 +93,7 @@
 
     const MenuBtn = ({icon, text, onClick}) => (
       <button onClick={onClick} className="w-full flex items-center space-x-3 text-gray-300 hover:text-white p-2 rounded hover:bg-gray-800">
-        <span>{icon}</span> <span className="font-semibold">{text}</span>
+        <span className="flex items-center justify-center w-6 h-6">{icon}</span> <span className="font-semibold">{text}</span>
       </button>
     );
 
@@ -103,7 +103,7 @@
         <div className="w-full h-80 bg-gray-800 rounded-xl overflow-hidden mb-6 relative border border-gray-700 shadow-xl" style={{ height: '400px' }}>
           <img src="mtg-bg.jpg" alt="MTG Background" className="w-full h-full object-cover" onError={(e) => e.target.style.display='none'} />
           <div className="absolute inset-0 bg-black/40 flex items-center justify-center flex-col pointer-events-none">
-            <h2 className="text-5xl font-black text-white drop-shadow-[0_5px_5px_rgba(0,0,0,1)] tracking-widest text-center">FOR FUN<br/><span className="text-red-500">EDITION</span></h2>
+            <h2 className="text-5xl font-black text-white drop-shadow-md tracking-widest text-center">FOR FUN<br/><span className="text-red-500">EDITION</span></h2>
           </div>
         </div>
         <div className="grid grid-cols-2 gap-4 w-full max-w-md">
@@ -122,7 +122,7 @@
       </button>
     );
 
-    // --- DECKBUILDER POTENZIATO CON PROMISES (NO ASYNC/AWAIT) ---
+    // --- DECKBUILDER POTENZIATO CON PROMISES (NO ASYNC/AWAIT, NO FRAGMENTS) ---
     const DeckBuilder = ({navigate, activeDeck}) => {
       const [deckName, setDeckName] = useState(activeDeck ? activeDeck.name : "");
       const [deck, setDeck] = useState(activeDeck ? activeDeck.cards : []);
@@ -144,7 +144,6 @@
 
       const toggleMana = (m) => setMana(mana.includes(m) ? mana.filter(x => x !== m) : [...mana, m]);
 
-      // Versione sicura senza async/await
       const eseguiRicerca = (url) => {
         setLoading(true);
         fetch(url)
@@ -237,8 +236,26 @@
         navigate('mydecks');
       };
 
+      // Controlli legalità resi sicuri
+      const commanders = deck.filter(c => c.isCommander);
+      const cmdColors = new Set();
+      commanders.forEach(c => {
+        if (c.colors) c.colors.forEach(col => cmdColors.add(col));
+      });
+      
+      let illegalColors = false;
+      deck.forEach(c => {
+        if(!c.isCommander && c.colors) {
+          c.colors.forEach(col => { if(!cmdColors.has(col) && cmdColors.size > 0) illegalColors = true; });
+        }
+      });
+      
+      const isLegalSize = deck.length === 100;
       const totalCMC = deck.reduce((acc, c) => acc + (c.cmc || 0), 0);
       const avgCMC = deck.length > 0 ? (totalCMC / deck.length).toFixed(2) : 0;
+      let deckRating = "Buono";
+      if (avgCMC > 4.0) deckRating = "⚠️ Curva di mana troppo alta! Rischia di essere lento.";
+      if (avgCMC < 2.0) deckRating = "⚠️ Curva molto bassa! Assicurati di pescare molto.";
 
       return (
         <div className="max-w-2xl mx-auto space-y-4">
@@ -297,7 +314,7 @@
              </div>
 
              <button onClick={searchCard} className="w-full bg-blue-600 font-bold py-3 rounded text-white shadow-lg flex justify-center items-center gap-2">
-               {loading && !nextPage ? 'Cerco...' : <><Icons.Search /> Cerca Carte</>}
+               {loading && !nextPage ? <span>Cerco...</span> : <span className="flex items-center gap-2"><Icons.Search /> Cerca Carte</span>}
              </button>
              
              <button onClick={() => setShowImport(!showImport)} className="text-sm text-blue-400 underline mt-3 inline-block">📥 Importa da Testo</button>
@@ -425,7 +442,7 @@
       );
     };
 
-    // --- PROXY CREATOR ---
+    // --- PROXY CREATOR CON OVERLAY ---
     const ProxyCreator = () => {
       const [baseQuery, setBaseQuery] = useState("");
       const [baseCard, setBaseCard] = useState(null);
@@ -523,7 +540,11 @@
       const updateStat = (playerId, stat, amount, opponentId = null) => {
         setPlayers(prev => prev.map(p => {
           if (p.id !== playerId) return p;
-          if (opponentId) return { ...p, cmdDmg: { ...p.cmdDmg, [opponentId]: Math.max(0, p.cmdDmg[opponentId] + amount) } };
+          if (opponentId) {
+             let newDmg = { ...p.cmdDmg };
+             newDmg[opponentId] = Math.max(0, newDmg[opponentId] + amount);
+             return { ...p, cmdDmg: newDmg };
+          }
           return { ...p, [stat]: Math.max(0, p[stat] + amount) };
         }));
       };
@@ -564,7 +585,7 @@
       if (!player.immune) {
          if (player.life <= 0) isDead = true;
          if (player.poison >= 10) isDead = true;
-         Object.values(player.cmdDmg).forEach(dmg => { if (dmg >= 21) isDead = true; });
+         Object.keys(player.cmdDmg).forEach(key => { if (player.cmdDmg[key] >= 21) isDead = true; });
       }
 
       const handleHold = (stat, amount, oppId = null) => {
