@@ -7,7 +7,8 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+  <!-- TRADUTTORE AGGIORNATO (Babel 7+) -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <style>
     body { -webkit-font-smoothing: antialiased; background-color: #111827; color: #f3f4f6; overflow-x: hidden; user-select: none; }
     .animate-fade { animation: fadeIn 0.3s ease-in-out; }
@@ -336,7 +337,11 @@
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
           {decks.map(d => {
             const cmds = d.cards.filter(c => c.isCommander);
-            const mainImg = cmds.length > 0 ? cmds[0].image : (d.cards[0]?.image || '');
+            // Sicurezza per trovare l'immagine del comandante (senza optional chaining per Babel)
+            let mainImg = '';
+            if (cmds.length > 0 && cmds[0]) mainImg = cmds[0].image;
+            else if (d.cards[0]) mainImg = d.cards[0].image;
+
             return (
               <div key={d.id} className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden shadow-lg flex flex-col">
                  <div className="h-32 bg-gray-900 relative">
@@ -346,7 +351,7 @@
                  </div>
                  <div className="p-3 bg-gray-900 grid grid-cols-2 gap-2 text-sm font-bold">
                    <button onClick={() => navigate('deckbuilder', d)} className="bg-blue-600 text-white rounded py-2">Modifica</button>
-                   <button onClick={() => navigate('printview', d)} className="bg-purple-600 text-white rounded py-2">Stampa PDF (Proxy)</button>
+                   <button onClick={() => navigate('printview', d)} className="bg-purple-600 text-white rounded py-2">Stampa PDF</button>
                    <button onClick={() => exportText(d)} className="bg-gray-700 text-white rounded py-2">Esporta Testo</button>
                    <button onClick={() => deleteDeck(d.id)} className="bg-red-800 text-white rounded py-2">Elimina</button>
                  </div>
@@ -387,8 +392,10 @@
         try {
           const res = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(baseQuery)}`);
           const c = await res.json();
-          if(c.id) setBaseCard({ name: c.name, type: c.type_line, cost: c.mana_cost, stats: `${c.power||''}/${c.toughness||''}`.replace('/',' / '), img: c.image_uris?.normal });
-          else alert("Non trovata");
+          if(c.id) {
+             let imgUrl = c.image_uris ? c.image_uris.normal : null;
+             setBaseCard({ name: c.name, type: c.type_line, cost: c.mana_cost, stats: `${c.power||''}/${c.toughness||''}`.replace('/',' / '), img: imgUrl });
+          } else alert("Non trovata");
         } catch(e) {}
       };
 
