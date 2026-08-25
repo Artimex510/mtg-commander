@@ -118,8 +118,8 @@
         <div className="grid grid-cols-2 gap-4 w-full max-w-md">
           <ActionCard icon="🎴" text="Crea Mazzo" onClick={() => navigate('deckbuilder')} color="bg-blue-900" />
           <ActionCard icon="📚" text="I Miei Mazzi" onClick={() => navigate('mydecks')} color="bg-emerald-900" />
+          <ActionCard icon="✨" text="Proxy Lair" onClick={() => navigate('proxycreator')} color="bg-purple-900" />
           <ActionCard icon="⚔️" text="Gioca" onClick={() => navigate('game')} color="bg-red-900" />
-          <ActionCard icon="🎲" text="Lancia Dado" onClick={() => navigate('dice')} color="bg-purple-900" />
         </div>
       </div>
     );
@@ -613,7 +613,7 @@
         <div className="max-w-md mx-auto bg-gray-800 p-6 rounded-xl border border-gray-700 mt-10 text-center">
           <h2 className="text-2xl font-bold mb-4 text-green-400">Arbitro AI</h2>
           <textarea className="w-full h-32 bg-gray-900 border border-gray-600 rounded p-3 text-white mb-4" placeholder="Es: Se attacco con..." value={question} onChange={(e) => setQuestion(e.target.value)}></textarea>
-          <button onClick={askJudge} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl">Chiedi all'Arbitro</button>
+          <button onClick={askJudge} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl flex justify-center w-full">Chiedi all'Arbitro</button>
         </div>
       );
     };
