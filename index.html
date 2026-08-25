@@ -7,7 +7,8 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- TRADUTTORE STABILE RIPRISTINATO -->
+  <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
   <style>
     body { -webkit-font-smoothing: antialiased; background-color: #111827; color: #f3f4f6; overflow-x: hidden; user-select: none; -webkit-touch-callout: none; }
     .animate-fade { animation: fadeIn 0.3s ease-in-out; }
@@ -100,8 +101,7 @@
     // --- HOME ---
     const HomeView = ({navigate}) => (
       <div className="flex flex-col items-center">
-        {/* MODIFICA: Altezza aumentata a h-[400px] per l'immagine */}
-        <div className="w-full h-[400px] bg-gray-800 rounded-xl overflow-hidden mb-6 relative border border-gray-700 shadow-xl">
+        <div className="w-full h-80 bg-gray-800 rounded-xl overflow-hidden mb-6 relative border border-gray-700 shadow-xl" style={{ height: '400px' }}>
           <img src="mtg-bg.jpg" alt="MTG Background" className="w-full h-full object-cover" onError={(e) => e.target.style.display='none'} />
           <div className="absolute inset-0 bg-black/40 flex items-center justify-center flex-col pointer-events-none">
             <h2 className="text-5xl font-black text-white drop-shadow-[0_5px_5px_rgba(0,0,0,1)] tracking-widest text-center">FOR FUN<br/><span className="text-red-500">EDITION</span></h2>
@@ -127,9 +127,8 @@
     const DeckBuilder = ({navigate, activeDeck}) => {
       const [deckName, setDeckName] = useState(activeDeck ? activeDeck.name : "");
       const [deck, setDeck] = useState(activeDeck ? activeDeck.cards : []);
-      const [rulebreaker, setRulebreaker] = useState(activeDeck ? activeDeck.rulebreaker : false);
+      const [rulebreaker, setRulebreaker] = useState(activeDeck ? (activeDeck.rulebreaker || false) : false);
       
-      // Ricerca Avanzata
       const [query, setQuery] = useState("");
       const [mana, setMana] = useState([]);
       const [cardType, setCardType] = useState("");
@@ -139,9 +138,8 @@
       
       const [results, setResults] = useState([]);
       const [loading, setLoading] = useState(false);
-      const [nextPage, setNextPage] = useState(null); // Per la paginazione
-      
-      const [selectedCard, setSelectedCard] = useState(null); // Modale carta ingrandita
+      const [nextPage, setNextPage] = useState(null);
+      const [selectedCard, setSelectedCard] = useState(null);
 
       const toggleMana = (m) => setMana(mana.includes(m) ? mana.filter(x => x !== m) : [...mana, m]);
 
@@ -151,15 +149,16 @@
           const res = await fetch(url);
           const data = await res.json();
           if (data.data) {
-             const cards = data.data.filter(c => c.image_uris || c.card_faces).map(c => ({
-               id: c.id, name: c.name, image: c.image_uris ? c.image_uris.normal : c.card_faces[0].image_uris.normal, 
-               type: c.type_line, cmc: c.cmc, colors: c.color_identity, isCommander: false
-             }));
-             // Se stiamo caricando una nuova pagina, aggiungi ai risultati vecchi
+             const cards = data.data.filter(c => c.image_uris || (c.card_faces && c.card_faces[0].image_uris)).map(c => {
+               let img = null;
+               if (c.image_uris) img = c.image_uris.normal;
+               else if (c.card_faces && c.card_faces[0].image_uris) img = c.card_faces[0].image_uris.normal;
+               return {
+                 id: c.id, name: c.name, image: img, type: c.type_line, cmc: c.cmc, colors: c.color_identity, isCommander: false
+               };
+             });
              if (url.includes('page=')) setResults([...results, ...cards]);
              else setResults(cards);
-             
-             // Salva il link della prossima pagina (se c'è)
              setNextPage(data.has_more ? data.next_page : null);
           } else { 
              if(!url.includes('page=')) { setResults([]); alert("Nessuna carta trovata!"); }
@@ -176,37 +175,37 @@
         if (cmcVal !== "") searchQuery += `cmc${cmcOp}${cmcVal} `;
         
         if(!searchQuery.trim()) return alert("Inserisci almeno un parametro di ricerca!");
-        
-        let url = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(searchQuery.trim())}`;
-        eseguiRicerca(url);
+        eseguiRicerca(`https://api.scryfall.com/cards/search?q=${encodeURIComponent(searchQuery.trim())}`);
       };
 
       const addToDeck = (card) => {
         setDeck([...deck, {...card, deckId: Date.now()}]);
-        setSelectedCard(null); // Chiude la modale
+        setSelectedCard(null);
       };
 
       const saveDeck = () => {
         if(!deckName) return alert("Dai un nome al mazzo!");
         let savedDecks = JSON.parse(localStorage.getItem('mtg_decks') || '[]');
-        const newDeckObj = { id: activeDeck ? activeDeck.id : Date.now(), name: deckName, cards: deck, rulebreaker, date: new Date().toLocaleDateString() };
+        const newDeckObj = { id: activeDeck ? activeDeck.id : Date.now(), name: deckName, cards: deck, rulebreaker: rulebreaker, date: new Date().toLocaleDateString() };
         if(activeDeck) savedDecks = savedDecks.map(d => d.id === activeDeck.id ? newDeckObj : d);
         else savedDecks.push(newDeckObj);
         localStorage.setItem('mtg_decks', JSON.stringify(savedDecks));
-        alert("Mazzo Salvato con successo!");
+        alert("Mazzo Salvato!");
         navigate('mydecks');
       };
+
+      const totalCMC = deck.reduce((acc, c) => acc + (c.cmc || 0), 0);
+      const avgCMC = deck.length > 0 ? (totalCMC / deck.length).toFixed(2) : 0;
 
       return (
         <div className="max-w-2xl mx-auto space-y-4">
           
-          {/* MODALE CARTA INGRANDITA */}
           {selectedCard && (
             <div className="fixed inset-0 bg-black/95 z-[100] flex flex-col items-center justify-center p-4 animate-fade" onClick={() => setSelectedCard(null)}>
               <div onClick={e => e.stopPropagation()} className="max-w-md w-full flex flex-col items-center">
                  <img src={selectedCard.image} alt={selectedCard.name} className="w-full max-h-[75vh] object-contain rounded-xl mb-6 shadow-2xl" />
                  <div className="flex gap-4 w-full">
-                   <button onClick={() => setSelectedCard(null)} className="flex-1 bg-gray-600 text-white font-bold py-3 rounded-xl">Annulla</button>
+                   <button onClick={() => setSelectedCard(null)} className="flex-1 bg-gray-600 text-white font-bold py-3 rounded-xl">Chiudi</button>
                    <button onClick={() => addToDeck(selectedCard)} className="flex-1 bg-blue-600 text-white font-bold py-3 rounded-xl">+ Aggiungi</button>
                  </div>
               </div>
@@ -217,16 +216,14 @@
             <input type="text" placeholder="Nome del Mazzo" value={deckName} onChange={e => setDeckName(e.target.value)} className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white text-xl font-bold mb-4" />
             <div className="flex justify-between items-center text-sm mb-2">
               <span className={`px-2 py-1 rounded font-bold ${deck.length === 100 ? 'bg-green-600' : 'bg-red-600'}`}>{deck.length} / 100 Carte</span>
-              <label className="flex items-center gap-1 text-yellow-500 font-bold cursor-pointer">
-                <input type="checkbox" checked={rulebreaker} onChange={e => setRulebreaker(e.target.checked)} className="accent-yellow-500" /> Rulebreaker
-              </label>
+              <span className="bg-blue-600 px-2 py-1 rounded font-bold">Avg CMC: {avgCMC}</span>
             </div>
           </div>
 
           <div className="bg-gray-800 p-4 rounded-xl border border-gray-700 shadow-md">
              <h3 className="font-bold text-blue-400 mb-3 border-b border-gray-700 pb-1">Ricerca Avanzata</h3>
              <div className="flex gap-2 mb-3">
-               <input type="text" placeholder="Nome o testo..." value={query} onChange={e => setQuery(e.target.value)} onKeyPress={e => e.key === 'Enter' && searchCard()} className="flex-1 bg-gray-900 border border-gray-600 rounded p-2 text-white" />
+               <input type="text" placeholder="Nome o parola chiave..." value={query} onChange={e => setQuery(e.target.value)} onKeyPress={e => e.key === 'Enter' && searchCard()} className="flex-1 bg-gray-900 border border-gray-600 rounded p-2 text-white" />
              </div>
              
              <div className="flex gap-2 mb-3 overflow-x-auto pb-1 justify-center">
@@ -271,8 +268,6 @@
                   </div>
                 ))}
               </div>
-              
-              {/* TASTO CARICA ALTRE PAGINE */}
               {nextPage && (
                 <button onClick={() => eseguiRicerca(nextPage)} className="mt-4 w-full bg-gray-700 hover:bg-gray-600 py-3 rounded font-bold text-blue-400 border border-blue-500">
                   {loading ? 'Caricamento...' : 'Carica Altre Carte ⬇️'}
@@ -293,7 +288,11 @@
                       <p className="text-xs text-gray-500 truncate">{card.type}</p>
                       <div className="flex gap-3 mt-2 items-center">
                         <label className="flex items-center gap-1 text-yellow-500 text-xs font-bold cursor-pointer">
-                          <input type="checkbox" checked={card.isCommander} onChange={() => toggleCommander(index)} className="accent-yellow-500" /> Cmdr
+                          <input type="checkbox" checked={card.isCommander} onChange={() => {
+                            const newDeck = [...deck];
+                            newDeck[index].isCommander = !newDeck[index].isCommander;
+                            setDeck(newDeck);
+                          }} className="accent-yellow-500" /> Cmdr
                         </label>
                         <button onClick={() => setDeck(deck.filter(c => c.deckId !== card.deckId))} className="text-xs text-red-500 underline ml-auto">Rimuovi</button>
                       </div>
@@ -308,7 +307,7 @@
       );
     };
 
-    // --- I MIEI MAZZI E STAMPA RIMANGONO INVARIATI ---
+    // --- I MIEI MAZZI ---
     const MyDecks = ({navigate}) => {
       const [decks, setDecks] = useState([]);
       useEffect(() => { setDecks(JSON.parse(localStorage.getItem('mtg_decks') || '[]')); }, []);
@@ -340,7 +339,7 @@
                  </div>
                  <div className="p-3 bg-gray-900 grid grid-cols-2 gap-2 text-sm font-bold">
                    <button onClick={() => navigate('deckbuilder', d)} className="bg-blue-600 text-white rounded py-2">Modifica</button>
-                   <button onClick={() => navigate('printview', d)} className="bg-purple-600 text-white rounded py-2">Stampa Proxy PDF</button>
+                   <button onClick={() => navigate('printview', d)} className="bg-purple-600 text-white rounded py-2">Stampa PDF</button>
                    <button onClick={() => deleteDeck(d.id)} className="col-span-2 bg-red-800 text-white rounded py-2 mt-2">Elimina</button>
                  </div>
               </div>
@@ -350,6 +349,7 @@
       );
     };
 
+    // --- STAMPA PROXY (PDF) ---
     const PrintView = ({deck, navigate}) => {
       if(!deck) return null;
       return (
@@ -368,7 +368,7 @@
       );
     };
 
-    // --- PROXY CREATOR (RIVOLUZIONATO CON OVERLAY) ---
+    // --- PROXY CREATOR CON CSS OVERLAY SICURO ---
     const ProxyCreator = () => {
       const [baseQuery, setBaseQuery] = useState("");
       const [baseCard, setBaseCard] = useState(null);
@@ -380,8 +380,11 @@
           const res = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(baseQuery)}`);
           const c = await res.json();
           if(c.id) {
-             let imgUrl = c.image_uris ? c.image_uris.normal : (c.card_faces ? c.card_faces[0].image_uris.normal : null);
-             setBaseCard({ name: c.name, img: imgUrl });
+             let imgUrl = null;
+             if (c.image_uris) imgUrl = c.image_uris.normal;
+             else if (c.card_faces && c.card_faces[0].image_uris) imgUrl = c.card_faces[0].image_uris.normal;
+             
+             setBaseCard({ name: c.name, type: c.type_line, img: imgUrl });
              setCustomName(""); setCustomImg("");
           } else alert("Carta non trovata");
         } catch(e) {}
@@ -415,28 +418,25 @@
                   <input type="file" accept="image/*" className="hidden" onChange={handleImage} />
                 </label>
                 
-                {/* LA MAGIA DELL'OVERLAY CSS */}
-                <div className="relative w-full aspect-[63/88] rounded-xl overflow-hidden shadow-2xl bg-black border border-gray-600 mt-6">
-                  {/* Livello 0: La Carta Reale */}
+                {/* LA MAGIA DELL'OVERLAY CSS CON STILI INLINE SICURI */}
+                <div className="relative w-full rounded-xl overflow-hidden shadow-2xl bg-black border border-gray-600 mt-6" style={{ aspectRatio: '63/88' }}>
                   <img src={baseCard.img} className="absolute inset-0 w-full h-full" />
                   
-                  {/* Livello 1: La Tua Illustrazione (Posizionata matematicamente sull'Art Box standard MTG) */}
                   {customImg && (
-                    <div className="absolute top-[11.5%] left-[8%] w-[84%] h-[44%] bg-black z-10 overflow-hidden shadow-inner">
+                    <div className="absolute bg-black z-10 overflow-hidden shadow-inner" style={{ top: '11.5%', left: '8%', width: '84%', height: '44%' }}>
                       <img src={customImg} className="w-full h-full object-cover" />
                     </div>
                   )}
 
-                  {/* Livello 2: Il Nuovo Nome (Copre il nome vecchio ma lascia visibile il mana) */}
                   {customName && (
-                    <div className="absolute top-[4.5%] left-[7%] w-[65%] h-[5%] bg-[#1a1a1a] z-20 flex items-center px-2 rounded-sm border border-gray-500 shadow-md">
+                    <div className="absolute bg-[#1a1a1a] z-20 flex items-center px-2 rounded-sm border border-gray-500 shadow-md" style={{ top: '4.5%', left: '7%', width: '65%', height: '5%' }}>
                       <span className="text-white font-bold text-xs tracking-wide truncate">{customName}</span>
                     </div>
                   )}
                 </div>
 
                 <div className="text-xs text-gray-500 text-center bg-gray-900 p-2 rounded">
-                  💡 Fai uno <b>Screenshot</b> di questa carta tagliando i bordi del telefono! Potrai caricarla nel Deckbuilder per sostituire l'immagine originale.
+                  💡 Fai uno <b>Screenshot</b> di questa carta tagliando i bordi del telefono!
                 </div>
               </div>
             )}
@@ -485,7 +485,6 @@
             <select value={startLife} onChange={e => setStartLife(parseInt(e.target.value))} className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white text-center text-xl">
               <option value={40}>40 (Commander)</option>
               <option value={20}>20 (Standard)</option>
-              <option value={30}>30 (Brawl/2HG)</option>
             </select>
           </div>
           <button onClick={startGame} className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-xl text-lg shadow-lg">Inizia Partita</button>
@@ -502,29 +501,30 @@
     };
 
     const PlayerCard = ({ player, updateStat, toggleImmunity, opponents }) => {
-      const [viewStats, setViewStats] = useState(false); // Sostituisce l'animazione 3D
+      const [viewStats, setViewStats] = useState(false); 
       
       const isDead = (player.life <= 0 || player.poison >= 10 || Object.values(player.cmdDmg).some(dmg => dmg >= 21)) && !player.immune;
 
-      // Timer Riparato (2 secondi netti)
       const handleHold = (stat, amount, oppId = null) => {
         let timer;
+        const start = (e) => {
+          if (e.type === 'touchstart') e.preventDefault(); 
+          updateStat(player.id, stat, amount, oppId);
+          timer = setTimeout(() => {
+            updateStat(player.id, stat, amount * 9, oppId);
+          }, 2000); 
+        };
+        const clear = () => clearTimeout(timer);
         return {
-          onPointerDown: (e) => {
-            e.preventDefault(); 
-            updateStat(player.id, stat, amount, oppId); // Scatto iniziale
-            timer = setTimeout(() => { 
-              updateStat(player.id, stat, amount * 9, oppId); 
-              if(navigator.vibrate) navigator.vibrate(100); 
-            }, 2000); // 2000ms = 2 secondi veri
-          },
-          onPointerUp: () => clearTimeout(timer),
-          onPointerLeave: () => clearTimeout(timer),
-          onContextMenu: (e) => e.preventDefault() // Blocca il menù del telefono
+          onTouchStart: start,
+          onTouchEnd: clear,
+          onTouchCancel: clear,
+          onMouseDown: (e) => { if(e.button === 0) start(e); },
+          onMouseUp: clear,
+          onMouseLeave: clear
         };
       };
 
-      // VISTA RETRO (Statistiche)
       if (viewStats) {
         return (
           <div className="w-full h-full min-h-[250px] flex flex-col rounded-xl border-2 border-blue-600 bg-gray-800 overflow-hidden shadow-lg p-2 animate-fade">
@@ -535,7 +535,7 @@
             
             <div className="overflow-y-auto space-y-3 pb-2 text-sm flex-1">
               <div className="bg-gray-900 p-2 rounded">
-                <p className="text-xs text-red-400 font-bold mb-2 uppercase">⚔️ Danni Comandante Subiti Da:</p>
+                <p className="text-xs text-red-400 font-bold mb-2 uppercase">⚔️ Danni Comandante Da:</p>
                 {opponents.map(opp => (
                    <StatRow key={opp.id} label={opp.name} value={player.cmdDmg[opp.id]} handlers={{sub: handleHold('cmdDmg', -1, opp.id), add: handleHold('cmdDmg', 1, opp.id)}} />
                 ))}
@@ -549,13 +549,12 @@
             </div>
             
             <button onClick={() => toggleImmunity(player.id)} className={`w-full py-2 mt-2 text-sm font-bold rounded ${player.immune ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>
-              {player.immune ? '🛡️ Immunità Attiva' : 'Attiva Immunità Sconfitta'}
+              {player.immune ? '🛡️ Immunità Attiva' : 'Attiva Immunità'}
             </button>
           </div>
         );
       }
 
-      // VISTA FRONTE (Vita)
       return (
         <div className={`w-full h-full min-h-[250px] flex flex-col rounded-xl border-2 relative animate-fade ${isDead ? 'border-red-600 bg-red-950' : 'border-gray-700 bg-gray-800'} overflow-hidden shadow-lg`}>
           {isDead && <div className="absolute inset-0 flex items-center justify-center text-8xl opacity-30 pointer-events-none">💀</div>}
@@ -586,7 +585,7 @@
       </div>
     );
 
-    // --- DICE ROLLER ---
+    // --- DICE ROLLER E ARBITRO INVARIATI ---
     const DiceRoller = () => {
       const [numPlayers, setNumPlayers] = useState(4);
       const [results, setResults] = useState([]);
@@ -626,7 +625,6 @@
       );
     };
 
-    // --- ARBITRO AI ---
     const RulesAI = () => {
       const [question, setQuestion] = useState("");
       const askJudge = () => {
