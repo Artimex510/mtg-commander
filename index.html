@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>MTG Commander Companion</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+  <style>
+    body { -webkit-font-smoothing: antialiased; background-color: #111827; color: #f3f4f6; overflow-x: hidden; user-select: none; }
+    .animate-fade { animation: fadeIn 0.3s ease-in-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    button { touch-action: manipulation; }
+    
+    /* Flip Card per Life Tracker */
+    .flip-card { perspective: 1000px; }
+    .flip-card-inner { transition: transform 0.6s; transform-style: preserve-3d; }
+    .flipped .flip-card-inner { transform: rotateY(180deg); }
+    .flip-card-front, .flip-card-back { backface-visibility: hidden; }
+    .flip-card-back { transform: rotateY(180deg); }
+
+    /* Stile per Stampa PDF Proxy */
+    @media print {
+      body { background: white; color: black; }
+      .no-print { display: none !important; }
+      .print-grid { display: grid; grid-template-columns: repeat(3, 63mm); gap: 2mm; justify-content: center; }
+      .print-card { width: 63mm; height: 88mm; object-fit: cover; border-radius: 3mm; margin-bottom: 2mm; page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    const Icons = {
+      Menu: () => <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16"/></svg>,
+      Home: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>,
+      Back: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>,
+      Search: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>,
+      Rotate: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>,
+      Camera: () => <span className="text-xl">📸</span>
+    };
+
+    const ManaColors = [
+      { id: 'W', color: 'bg-yellow-100 text-yellow-900', label: 'W' },
+      { id: 'U', color: 'bg-blue-500 text-white', label: 'U' },
+      { id: 'B', color: 'bg-gray-800 text-white', label: 'B' },
+      { id: 'R', color: 'bg-red-500 text-white', label: 'R' },
+      { id: 'G', color: 'bg-green-500 text-white', label: 'G' },
+      { id: 'C', color: 'bg-gray-400 text-gray-900', label: 'C' }
+    ];
+
+    function App() {
+      const [view, setView] = useState('home');
+      const [menuOpen, setMenuOpen] = useState(false);
+      const [activeDeck, setActiveDeck] = useState(null); 
+      
+      const navigate = (newView, deck = null) => { setActiveDeck(deck); setView(newView); setMenuOpen(false); };
+
+      return (
+        <div className="min-h-screen flex flex-col">
+          <header className="bg-gray-900 border-b border-gray-700 p-4 flex justify-between items-center fixed top-0 w-full z-50 shadow-md no-print">
+            <button onClick={() => setMenuOpen(true)} className="text-gray-300 hover:text-white"><Icons.Menu /></button>
+            <h1 className="text-lg font-bold tracking-widest text-white">MTG <span className="text-red-500">FOR FUN</span></h1>
+            <button onClick={() => navigate('home')} className="text-gray-300 hover:text-white"><Icons.Home /></button>
+          </header>
+
+          {menuOpen && (
+            <div className="fixed inset-0 bg-black/80 z-50 no-print" onClick={() => setMenuOpen(false)}>
+              <div className="w-64 bg-gray-900 h-full p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+                <h2 className="text-2xl font-bold mb-6 border-b border-gray-700 pb-2">Menu</h2>
+                <nav className="space-y-4">
+                  <MenuBtn icon={<Icons.Home/>} text="Home" onClick={() => navigate('home')} />
+                  <MenuBtn icon="🎴" text="Deckbuilding" onClick={() => navigate('deckbuilder')} />
+                  <MenuBtn icon="📚" text="I Miei Mazzi" onClick={() => navigate('mydecks')} />
+                  <MenuBtn icon="✨" text="Proxy Creator (Lair)" onClick={() => navigate('proxycreator')} />
+                  <MenuBtn icon="⚔️" text="Utility Gioco (Life)" onClick={() => navigate('game')} />
+                  <MenuBtn icon="🎲" text="Lancia Dado" onClick={() => navigate('dice')} />
+                  <MenuBtn icon="⚖️" text="Arbitro AI (Regole)" onClick={() => navigate('rules')} />
+                </nav>
+              </div>
+            </div>
+          )}
+
+          <main className="pt-20 px-2 pb-10 flex-1 animate-fade">
+            {view === 'home' && <HomeView navigate={navigate} />}
+            {view === 'deckbuilder' && <DeckBuilder navigate={navigate} activeDeck={activeDeck} />}
+            {view === 'mydecks' && <MyDecks navigate={navigate} />}
+            {view === 'proxycreator' && <ProxyCreator />}
+            {view === 'printview' && <PrintView deck={activeDeck} navigate={navigate} />}
+            {view === 'game' && <GameUtility />}
+            {view === 'dice' && <DiceRoller />}
+            {view === 'rules' && <RulesAI />}
+          </main>
+        </div>
+      );
+    }
+
+    const MenuBtn = ({icon, text, onClick}) => (
+      <button onClick={onClick} className="w-full flex items-center space-x-3 text-gray-300 hover:text-white p-2 rounded hover:bg-gray-800">
+        <span>{icon}</span> <span className="font-semibold">{text}</span>
+      </button>
+    );
+
+    // --- HOME ---
+    const HomeView = ({navigate}) => (
+      <div className="flex flex-col items-center">
+        <div className="w-full h-64 bg-gray-800 rounded-xl overflow-hidden mb-6 relative border border-gray-700 shadow-xl">
+          <img src="mtg-bg.jpg" alt="MTG Background" className="w-full h-full object-cover opacity-60" onError={(e) => e.target.style.display='none'} />
+          <div className="absolute inset-0 flex items-center justify-center flex-col">
+            <h2 className="text-4xl font-black text-white drop-shadow-lg tracking-widest text-center">FOR FUN<br/><span className="text-red-500">EDITION</span></h2>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4 w-full max-w-md">
+          <ActionCard icon="🎴" text="Crea Mazzo" onClick={() => navigate('deckbuilder')} color="bg-blue-900" />
+          <ActionCard icon="📚" text="I Miei Mazzi" onClick={() => navigate('mydecks')} color="bg-emerald-900" />
+          <ActionCard icon="⚔️" text="Gioca" onClick={() => navigate('game')} color="bg-red-900" />
+          <ActionCard icon="🎲" text="Lancia Dado" onClick={() => navigate('dice')} color="bg-purple-900" />
+        </div>
+      </div>
+    );
+
+    const ActionCard = ({icon, text, onClick, color}) => (
+      <button onClick={onClick} className={`${color} p-6 rounded-xl flex flex-col items-center justify-center border border-gray-600 shadow-lg active:scale-95 transition-transform`}>
+        <div className="text-3xl mb-2">{icon}</div>
+        <span className="font-bold">{text}</span>
+      </button>
+    );
+
+    // --- DECKBUILDER ---
+    const DeckBuilder = ({navigate, activeDeck}) => {
+      const [deckName, setDeckName] = useState(activeDeck ? activeDeck.name : "");
+      const [deck, setDeck] = useState(activeDeck ? activeDeck.cards : []);
+      const [rulebreaker, setRulebreaker] = useState(activeDeck ? activeDeck.rulebreaker : false);
+      
+      const [query, setQuery] = useState("");
+      const [mana, setMana] = useState([]);
+      const [cardType, setCardType] = useState("");
+      const [results, setResults] = useState([]);
+      const [loading, setLoading] = useState(false);
+      const [importText, setImportText] = useState("");
+      const [showImport, setShowImport] = useState(false);
+
+      const toggleMana = (m) => setMana(mana.includes(m) ? mana.filter(x => x !== m) : [...mana, m]);
+
+      const searchCard = async () => {
+        setLoading(true);
+        try {
+          let searchQuery = query ? `${query} ` : "";
+          if (mana.length > 0) searchQuery += `c:${mana.join('')} `;
+          if (cardType) searchQuery += `t:${cardType} `;
+          if(!searchQuery.trim()) return alert("Inserisci almeno un parametro di ricerca!");
+
+          let url = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(searchQuery.trim())}`;
+          const res = await fetch(url);
+          const data = await res.json();
+          if (data.data) {
+             const cards = data.data.filter(c => c.image_uris || c.card_faces).map(c => ({
+               id: c.id, name: c.name, image: c.image_uris ? c.image_uris.normal : c.card_faces[0].image_uris.normal, 
+               type: c.type_line, cmc: c.cmc, colors: c.color_identity, isCommander: false
+             })).slice(0, 15);
+             setResults(cards);
+          } else { setResults([]); alert("Nessuna carta trovata!"); }
+        } catch(e) { console.error(e); }
+        setLoading(false);
+      };
+
+      const handleImport = async () => {
+        if(!importText.trim()) return;
+        setLoading(true);
+        const lines = importText.split('\n');
+        const newCards = [];
+        for (let line of lines) {
+          line = line.trim();
+          if(!line) continue;
+          const match = line.match(/^(\d+)?\s*(.*)$/);
+          let qty = match[1] ? parseInt(match[1]) : 1;
+          let name = match[2];
+          try {
+            const res = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(name)}`);
+            if(res.ok) {
+              const c = await res.json();
+              for(let i=0; i<qty; i++) {
+                newCards.push({
+                  id: c.id + '-' + i + Date.now(), name: c.name, image: c.image_uris ? c.image_uris.normal : c.card_faces[0].image_uris.normal, 
+                  type: c.type_line, cmc: c.cmc, colors: c.color_identity, isCommander: false
+                });
+              }
+            }
+          } catch(e) {}
+        }
+        setDeck([...deck, ...newCards]);
+        setShowImport(false); setImportText(""); setLoading(false);
+      };
+
+      const toggleCommander = (index) => {
+        const newDeck = [...deck];
+        newDeck[index].isCommander = !newDeck[index].isCommander;
+        setDeck(newDeck);
+      };
+
+      const commanders = deck.filter(c => c.isCommander);
+      const cmdColors = new Set(commanders.flatMap(c => c.colors));
+      let illegalColors = false;
+      deck.forEach(c => {
+        if(!c.isCommander && c.colors) {
+          c.colors.forEach(col => { if(!cmdColors.has(col) && cmdColors.size > 0) illegalColors = true; });
+        }
+      });
+      const isLegalSize = deck.length === 100;
+      const totalCMC = deck.reduce((acc, c) => acc + (c.cmc || 0), 0);
+      const avgCMC = deck.length > 0 ? (totalCMC / deck.length).toFixed(2) : 0;
+      let deckRating = "Buono";
+      if (avgCMC > 4.0) deckRating = "⚠️ Curva di mana troppo alta! Rischia di essere lento.";
+      if (avgCMC < 2.0) deckRating = "⚠️ Curva molto bassa! Assicurati di pescare molto.";
+
+      const saveDeck = () => {
+        if(!deckName) return alert("Dai un nome al mazzo!");
+        let savedDecks = JSON.parse(localStorage.getItem('mtg_decks') || '[]');
+        const newDeckObj = { id: activeDeck ? activeDeck.id : Date.now(), name: deckName, cards: deck, rulebreaker, date: new Date().toLocaleDateString() };
+        if(activeDeck) savedDecks = savedDecks.map(d => d.id === activeDeck.id ? newDeckObj : d);
+        else savedDecks.push(newDeckObj);
+        localStorage.setItem('mtg_decks', JSON.stringify(savedDecks));
+        alert("Mazzo Salvato con successo!");
+        navigate('mydecks');
+      };
+
+      return (
+        <div className="max-w-2xl mx-auto space-y-4">
+          <div className="bg-gray-800 p-4 rounded-xl border border-gray-700 shadow-md">
+            <input type="text" placeholder="Nome del Mazzo" value={deckName} onChange={e => setDeckName(e.target.value)} className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white text-xl font-bold mb-4" />
+            <div className="flex flex-wrap gap-2 mb-4 justify-between items-center text-sm">
+              <span className={`px-2 py-1 rounded font-bold ${isLegalSize ? 'bg-green-600' : 'bg-red-600'}`}>{deck.length} / 100 Carte</span>
+              {!rulebreaker && commanders.length > 0 && illegalColors && <span className="bg-red-600 px-2 py-1 rounded">⚠️ Colori Illegali</span>}
+              <span className="bg-blue-600 px-2 py-1 rounded">Avg CMC: {avgCMC}</span>
+            </div>
+            <p className="text-xs text-gray-400 mb-2 font-bold">{deckRating}</p>
+            <label className="flex items-center gap-2 text-sm text-yellow-500 font-bold bg-yellow-900/30 p-2 rounded border border-yellow-700 cursor-pointer">
+              <input type="checkbox" checked={rulebreaker} onChange={e => setRulebreaker(e.target.checked)} className="accent-yellow-500 w-4 h-4" />
+              Attiva "Rulebreaker" (Ignora regole restrizioni)
+            </label>
+          </div>
+
+          <div className="bg-gray-800 p-4 rounded-xl border border-gray-700 shadow-md">
+             <div className="flex gap-2 mb-3">
+               <input type="text" placeholder="Nome o parola chiave..." value={query} onChange={e => setQuery(e.target.value)} onKeyPress={e => e.key === 'Enter' && searchCard()} className="flex-1 bg-gray-900 border border-gray-600 rounded p-2 text-white" />
+               <button onClick={searchCard} className="bg-blue-600 p-2 rounded text-white"><Icons.Search /></button>
+             </div>
+             <div className="flex gap-2 mb-3 overflow-x-auto pb-1">
+               {ManaColors.map(m => (
+                 <button key={m.id} onClick={() => toggleMana(m.id)} className={`w-8 h-8 rounded-full flex items-center justify-center font-bold border-2 ${mana.includes(m.id) ? 'border-white scale-110' : 'border-transparent opacity-50'} ${m.color}`}>{m.label}</button>
+               ))}
+             </div>
+             <select value={cardType} onChange={e => setCardType(e.target.value)} className="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm mb-3">
+               <option value="">Qualsiasi Tipo</option>
+               <option value="creature">Creatura</option>
+               <option value="artifact">Artefatto</option>
+               <option value="enchantment">Incantesimo</option>
+               <option value="instant">Istantaneo</option>
+               <option value="sorcery">Stregoneria</option>
+               <option value="land">Terra</option>
+             </select>
+             <button onClick={() => setShowImport(!showImport)} className="text-sm text-blue-400 underline">📥 Importa da Testo</button>
+             {showImport && (
+               <div className="mt-2">
+                 <textarea value={importText} onChange={e => setImportText(e.target.value)} placeholder="1 Sol Ring&#10;1 Command Tower" className="w-full h-24 bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm mb-2"></textarea>
+                 <button onClick={handleImport} className="w-full bg-green-600 p-2 rounded text-white font-bold">{loading ? 'Importo...' : 'Aggiungi Carte'}</button>
+               </div>
+             )}
+          </div>
+
+          {results.length > 0 && (
+            <div className="bg-gray-800 p-4 rounded-xl border border-gray-700">
+              <h3 className="text-gray-400 text-sm mb-2">Risultati:</h3>
+              <div className="grid grid-cols-3 gap-2">
+                {results.map((card, i) => (
+                  <div key={i} className="relative cursor-pointer hover:ring-2 ring-blue-500 rounded" onClick={() => { setDeck([...deck, {...card, deckId: Date.now()}]); setResults([]); }}>
+                    <img src={card.image} alt={card.name} className="w-full rounded" />
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity rounded"><span className="text-white font-bold text-xs bg-blue-600 px-2 py-1 rounded-full">+ Agg</span></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {deck.length > 0 && (
+            <div className="bg-gray-800 p-4 rounded-xl border border-gray-700 shadow-md">
+              <div className="space-y-3">
+                {deck.map((card, index) => (
+                  <div key={card.deckId} className={`flex gap-3 bg-gray-900 p-2 rounded border ${card.isCommander ? 'border-yellow-500' : 'border-gray-700'}`}>
+                    <img src={card.image} alt={card.name} className="w-16 rounded shadow object-cover" />
+                    <div className="flex-1 text-sm">
+                      <h4 className="font-bold text-gray-200">{card.name}</h4>
+                      <p className="text-xs text-gray-500 truncate">{card.type}</p>
+                      <div className="flex gap-3 mt-2">
+                        <label className="flex items-center gap-1 text-yellow-500 text-xs font-bold cursor-pointer">
+                          <input type="checkbox" checked={card.isCommander} onChange={() => toggleCommander(index)} className="accent-yellow-500" /> Cmdr
+                        </label>
+                        <button onClick={() => setDeck(deck.filter(c => c.deckId !== card.deckId))} className="text-xs text-red-500 underline">Rimuovi</button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <button onClick={saveDeck} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl shadow-lg sticky bottom-4">Salva Definitivo</button>
+        </div>
+      );
+    };
+
+    // --- I MIEI MAZZI ---
+    const MyDecks = ({navigate}) => {
+      const [decks, setDecks] = useState([]);
+      useEffect(() => { setDecks(JSON.parse(localStorage.getItem('mtg_decks') || '[]')); }, []);
+
+      const deleteDeck = (id) => {
+        if(confirm("Eliminare definitivamente?")) {
+          const newD = decks.filter(d => d.id !== id);
+          localStorage.setItem('mtg_decks', JSON.stringify(newD));
+          setDecks(newD);
+        }
+      };
+      const exportText = (deck) => {
+        const text = deck.cards.map(c => `1 ${c.name}`).join('\n');
+        navigator.clipboard.writeText(text); alert("Copiato negli appunti!");
+      };
+
+      if (decks.length === 0) return <div className="text-center text-gray-500 mt-10">Nessun mazzo salvato.</div>;
+
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
+          {decks.map(d => {
+            const cmds = d.cards.filter(c => c.isCommander);
+            const mainImg = cmds.length > 0 ? cmds[0].image : (d.cards[0]?.image || '');
+            return (
+              <div key={d.id} className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden shadow-lg flex flex-col">
+                 <div className="h-32 bg-gray-900 relative">
+                   <img src={mainImg} alt="Commander" className="w-full h-full object-cover object-top opacity-50" />
+                   <div className="absolute inset-0 bg-gradient-to-t from-gray-900 to-transparent"></div>
+                   <h3 className="absolute bottom-2 left-4 text-xl font-black text-white drop-shadow-md">{d.name}</h3>
+                 </div>
+                 <div className="p-3 bg-gray-900 grid grid-cols-2 gap-2 text-sm font-bold">
+                   <button onClick={() => navigate('deckbuilder', d)} className="bg-blue-600 text-white rounded py-2">Modifica</button>
+                   <button onClick={() => navigate('printview', d)} className="bg-purple-600 text-white rounded py-2">Stampa PDF (Proxy)</button>
+                   <button onClick={() => exportText(d)} className="bg-gray-700 text-white rounded py-2">Esporta Testo</button>
+                   <button onClick={() => deleteDeck(d.id)} className="bg-red-800 text-white rounded py-2">Elimina</button>
+                 </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    };
+
+    // --- STAMPA PROXY (PDF) ---
+    const PrintView = ({deck, navigate}) => {
+      if(!deck) return null;
+      return (
+        <div className="print-container w-full h-full bg-white text-black p-4 absolute top-0 left-0 z-50">
+          <div className="no-print mb-4 p-4 bg-gray-100 rounded border border-gray-300 flex justify-between items-center">
+            <p className="font-bold text-gray-800">Usa la funzione "Stampa" del browser e seleziona "Salva come PDF".<br/>Le carte sono 63x88mm.</p>
+            <div className="space-x-2">
+              <button onClick={() => navigate('mydecks')} className="px-4 py-2 bg-gray-500 text-white rounded">Indietro</button>
+              <button onClick={() => window.print()} className="px-4 py-2 bg-blue-600 text-white font-bold rounded">Stampa PDF</button>
+            </div>
+          </div>
+          <div className="print-grid">
+            {deck.cards.map((c, i) => <img key={i} src={c.image} alt={c.name} className="print-card shadow-sm border border-gray-300" />)}
+          </div>
+        </div>
+      );
+    };
+
+    // --- PROXY CREATOR ---
+    const ProxyCreator = () => {
+      const [baseQuery, setBaseQuery] = useState("");
+      const [baseCard, setBaseCard] = useState(null);
+      const [customName, setCustomName] = useState("");
+      const [customImg, setCustomImg] = useState("");
+      
+      const searchBase = async () => {
+        try {
+          const res = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(baseQuery)}`);
+          const c = await res.json();
+          if(c.id) setBaseCard({ name: c.name, type: c.type_line, cost: c.mana_cost, stats: `${c.power||''}/${c.toughness||''}`.replace('/',' / '), img: c.image_uris?.normal });
+          else alert("Non trovata");
+        } catch(e) {}
+      };
+
+      const handleImage = (e) => {
+        const file = e.target.files[0];
+        if(file) {
+          const r = new FileReader();
+          r.onload = (ev) => setCustomImg(ev.target.result);
+          r.readAsDataURL(file);
+        }
+      };
+
+      return (
+        <div className="max-w-md mx-auto space-y-4">
+          <div className="bg-gray-800 p-4 rounded-xl border border-gray-700 shadow-md">
+            <h2 className="text-xl font-bold text-purple-400 mb-2">Proxy Creator Lair</h2>
+            <div className="flex gap-2 mb-4">
+              <input type="text" placeholder="Carta Base (es. Sol Ring)" value={baseQuery} onChange={e => setBaseQuery(e.target.value)} className="flex-1 bg-gray-900 p-2 rounded text-white" />
+              <button onClick={searchBase} className="bg-purple-600 px-3 rounded text-white">Cerca</button>
+            </div>
+            
+            {baseCard && (
+              <div className="space-y-4 animate-fade">
+                <input type="text" placeholder="Nuovo Nickname" value={customName} onChange={e => setCustomName(e.target.value)} className="w-full bg-gray-900 p-2 rounded text-white font-bold" />
+                <label className="block w-full bg-gray-700 hover:bg-gray-600 text-center py-2 rounded cursor-pointer font-bold text-sm text-white">
+                  📸 Carica Immagine Artistica <input type="file" accept="image/*" className="hidden" onChange={handleImage} />
+                </label>
+                
+                <div className="relative w-full aspect-[63/88] rounded-xl overflow-hidden border-8 border-gray-900 shadow-2xl bg-black">
+                  {customImg ? <img src={customImg} className="w-full h-full object-cover" /> : <div className="flex h-full items-center justify-center text-gray-600">No Image</div>}
+                  <div className="absolute top-0 left-0 w-full bg-black/80 backdrop-blur-sm p-3 border-b-2 border-gray-600">
+                    <h3 className="text-white font-black text-xl tracking-wider">{customName || 'NICKNAME'}</h3>
+                    <p className="text-gray-400 text-xs italic mt-1">{baseCard.name}</p>
+                  </div>
+                  <div className="absolute bottom-0 left-0 w-full bg-black/80 backdrop-blur-sm p-3 border-t-2 border-gray-600 flex justify-between items-end">
+                    <div><p className="text-gray-300 text-xs font-bold uppercase">{baseCard.type}</p></div>
+                    {baseCard.stats !== ' / ' && <div className="bg-gray-800 px-2 py-1 rounded font-bold text-white border border-gray-600">{baseCard.stats}</div>}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    // --- GAME UTILITY (LIFE TRACKER) ---
+    const GameUtility = () => {
+      const [setup, setSetup] = useState(true);
+      const [numPlayers, setNumPlayers] = useState(4);
+      const [startLife, setStartLife] = useState(40);
+      const [players, setPlayers] = useState([]);
+
+      const startGame = () => {
+        let newPlayers = [];
+        for(let i=1; i<=numPlayers; i++) {
+          let cmdDmg = {};
+          for(let j=1; j<=numPlayers; j++) { if(i!==j) cmdDmg[`P${j}`] = 0; }
+          newPlayers.push({ id: `P${i}`, name: `Player ${i}`, life: startLife, poison: 0, cmdCasts: 0, emblems: 0, immune: false, cmdDmg: cmdDmg });
+        }
+        setPlayers(newPlayers);
+        setSetup(false);
+      };
+
+      const updateStat = (playerId, stat, amount, opponentId = null) => {
+        setPlayers(players.map(p => {
+          if (p.id !== playerId) return p;
+          if (opponentId) return { ...p, cmdDmg: { ...p.cmdDmg, [opponentId]: Math.max(0, p.cmdDmg[opponentId] + amount) } };
+          return { ...p, [stat]: Math.max(0, p[stat] + amount) };
+        }));
+      };
+
+      const toggleImmunity = (playerId) => { setPlayers(players.map(p => p.id === playerId ? { ...p, immune: !p.immune } : p)); };
+
+      if (setup) return (
+        <div className="max-w-md mx-auto bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700 mt-4">
+          <h2 className="text-2xl font-bold mb-6 text-center text-red-500">Setup Partita</h2>
+          <div className="mb-4">
+            <label className="block text-gray-400 mb-2">Numero Giocatori (1-6)</label>
+            <input type="number" min="1" max="6" value={numPlayers} onChange={e => setNumPlayers(parseInt(e.target.value))} className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white text-center text-xl" />
+          </div>
+          <div className="mb-6">
+            <label className="block text-gray-400 mb-2">Punti Vita Iniziali</label>
+            <select value={startLife} onChange={e => setStartLife(parseInt(e.target.value))} className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white text-center text-xl">
+              <option value={40}>40 (Commander)</option>
+              <option value={20}>20 (Standard)</option>
+              <option value={30}>30 (Brawl/2HG)</option>
+            </select>
+          </div>
+          <button onClick={startGame} className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-xl text-lg shadow-lg">Inizia Partita</button>
+        </div>
+      );
+
+      const gridClass = players.length === 1 ? 'grid-cols-1' : (players.length <= 4 ? 'grid-cols-2' : 'grid-cols-2 lg:grid-cols-3');
+
+      return (
+        <div className={`grid ${gridClass} gap-2 h-[80vh]`}>
+          {players.map(p => <PlayerCard key={p.id} player={p} updateStat={updateStat} toggleImmunity={toggleImmunity} opponents={players.filter(op => op.id !== p.id)} />)}
+        </div>
+      );
+    };
+
+    const PlayerCard = ({ player, updateStat, toggleImmunity, opponents }) => {
+      const [flipped, setFlipped] = useState(false);
+      const isDead = (player.life <= 0 || player.poison >= 10 || Object.values(player.cmdDmg).some(dmg => dmg >= 21)) && !player.immune;
+
+      const createHoldHandler = (stat, amount, oppId = null) => {
+        let timer;
+        return {
+          onPointerDown: (e) => {
+            e.preventDefault(); updateStat(player.id, stat, amount, oppId);
+            timer = setTimeout(() => { updateStat(player.id, stat, amount * 9, oppId); navigator.vibrate && navigator.vibrate(50); }, 600);
+          },
+          onPointerUp: () => clearTimeout(timer),
+          onPointerLeave: () => clearTimeout(timer)
+        };
+      };
+
+      return (
+        <div className={`flip-card w-full h-full min-h-[250px] relative ${flipped ? 'flipped' : ''}`}>
+          <div className="flip-card-inner w-full h-full relative">
+            <div className={`flip-card-front absolute w-full h-full flex flex-col rounded-xl border-2 ${isDead ? 'border-red-600 bg-red-950' : 'border-gray-700 bg-gray-800'} overflow-hidden shadow-lg`}>
+              {isDead && <div className="absolute inset-0 flex items-center justify-center text-8xl opacity-30 pointer-events-none">💀</div>}
+              {player.immune && <div className="absolute inset-0 flex items-center justify-center text-8xl opacity-20 pointer-events-none text-blue-500">🛡️</div>}
+              
+              <div className="flex justify-between items-center bg-gray-900/50 p-2 z-10">
+                <span className="font-bold text-gray-300">{player.name}</span>
+                <button onClick={() => setFlipped(true)} className="p-1 bg-gray-700 rounded-full text-white shadow"><Icons.Rotate/></button>
+              </div>
+              <div className="flex-1 flex items-center justify-between px-2 z-10">
+                <button {...createHoldHandler('life', -1)} className="w-16 h-full flex items-center justify-center text-4xl font-bold text-red-400 active:bg-red-500/20 rounded-l">-</button>
+                <div className="text-6xl font-black text-white">{player.life}</div>
+                <button {...createHoldHandler('life', 1)} className="w-16 h-full flex items-center justify-center text-4xl font-bold text-green-400 active:bg-green-500/20 rounded-r">+</button>
+              </div>
+            </div>
+
+            <div className="flip-card-back absolute w-full h-full flex flex-col rounded-xl border-2 border-gray-600 bg-gray-800 overflow-hidden shadow-lg p-2">
+              <div className="flex justify-between items-center border-b border-gray-700 pb-1 mb-2">
+                <span className="font-bold text-sm text-gray-300">Stats Extra</span>
+                <button onClick={() => setFlipped(false)} className="p-1 bg-red-700 rounded-full text-white shadow"><Icons.Back/></button>
+              </div>
+              <div className="overflow-y-auto space-y-3 pb-2 text-sm flex-1">
+                <StatRow label="💧 Veleno" value={player.poison} onAdd={() => updateStat(player.id, 'poison', 1)} onSub={() => updateStat(player.id, 'poison', -1)} />
+                <StatRow label="⚔️ Lanci Cmd" value={player.cmdCasts} onAdd={() => updateStat(player.id, 'cmdCasts', 1)} onSub={() => updateStat(player.id, 'cmdCasts', -1)} />
+                <StatRow label="🛡️ Emblemi" value={player.emblems} onAdd={() => updateStat(player.id, 'emblems', 1)} onSub={() => updateStat(player.id, 'emblems', -1)} />
+                <div className="pt-2 border-t border-gray-700">
+                  <div className="text-xs text-gray-400 mb-1">Danni Comandante Subiti:</div>
+                  {opponents.map(opp => (
+                     <StatRow key={opp.id} label={`Da ${opp.name}`} value={player.cmdDmg[opp.id]} onAdd={() => updateStat(player.id, 'cmdDmg', 1, opp.id)} onSub={() => updateStat(player.id, 'cmdDmg', -1, opp.id)} />
+                  ))}
+                </div>
+              </div>
+              <button onClick={() => toggleImmunity(player.id)} className={`w-full py-2 text-sm font-bold rounded ${player.immune ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400'}`}>
+                {player.immune ? '🛡️ Immunità Attiva' : 'Attiva Immunità'}
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    const StatRow = ({ label, value, onAdd, onSub }) => (
+      <div className="flex justify-between items-center bg-gray-900 rounded px-2 py-1">
+        <span className="text-gray-300">{label}</span>
+        <div className="flex items-center space-x-3">
+          <button onClick={onSub} className="w-8 h-8 bg-red-900/50 rounded font-bold text-red-400">-</button>
+          <span className="w-4 text-center font-bold text-white">{value}</span>
+          <button onClick={onAdd} className="w-8 h-8 bg-green-900/50 rounded font-bold text-green-400">+</button>
+        </div>
+      </div>
+    );
+
+    // --- DICE ROLLER ---
+    const DiceRoller = () => {
+      const [numPlayers, setNumPlayers] = useState(4);
+      const [results, setResults] = useState([]);
+      const [winnerMessage, setWinnerMessage] = useState("");
+
+      const rollDice = () => {
+        let rolls = []; let max = 0;
+        for(let i=1; i<=numPlayers; i++) {
+          const roll = Math.floor(Math.random() * 20) + 1;
+          rolls.push({ player: `Player ${i}`, roll: roll });
+          if(roll > max) max = roll;
+        }
+        setResults(rolls);
+        const winners = rolls.filter(r => r.roll === max);
+        if(winners.length === 1) setWinnerMessage(`🎉 Inizia: ${winners[0].player}!`);
+        else setWinnerMessage(`Pareggio tra: ${winners.map(w=>w.player).join(', ')}. Ritirate!`);
+      };
+
+      return (
+        <div className="max-w-md mx-auto bg-gray-800 p-6 rounded-xl border border-gray-700 mt-10">
+          <h2 className="text-2xl font-bold mb-6 text-center text-purple-400">Tira il Dado (D20)</h2>
+          <label className="block text-gray-400 mb-2">Numero Giocatori</label>
+          <input type="number" min="2" max="6" value={numPlayers} onChange={e => setNumPlayers(parseInt(e.target.value))} className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white text-center mb-6" />
+          <button onClick={rollDice} className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 rounded-xl text-lg mb-6">Tira!</button>
+          {results.length > 0 && (
+            <div className="space-y-2">
+              {results.map((r, i) => (
+                <div key={i} className="flex justify-between p-3 bg-gray-900 rounded border border-gray-700">
+                  <span className="font-bold text-gray-300">{r.player}</span>
+                  <span className="font-black text-white text-xl">{r.roll}</span>
+                </div>
+              ))}
+              <div className="mt-4 p-3 bg-green-900/40 border border-green-500 rounded text-center font-bold text-green-400">{winnerMessage}</div>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    // --- ARBITRO AI ---
+    const RulesAI = () => {
+      const [question, setQuestion] = useState("");
+      const askJudge = () => {
+        if(!question) return;
+        const prompt = `Sei un Arbitro Livello 3 di Magic: The Gathering. Rispondi in italiano a questo dubbio: "${question}"`;
+        window.open(`https://gemini.google.com/app?q=${encodeURIComponent(prompt)}`, '_blank');
+      };
+      return (
+        <div className="max-w-md mx-auto bg-gray-800 p-6 rounded-xl border border-gray-700 mt-10 text-center">
+          <h2 className="text-2xl font-bold mb-4 text-green-400">Arbitro AI</h2>
+          <textarea className="w-full h-32 bg-gray-900 border border-gray-600 rounded p-3 text-white mb-4" placeholder="Es: Se attacco con..." value={question} onChange={(e) => setQuestion(e.target.value)}></textarea>
+          <button onClick={askJudge} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl">Chiedi all'Arbitro</button>
+        </div>
+      );
+    };
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
