@@ -39,7 +39,7 @@
 
     const Icons = {
       Menu: () => <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16"/></svg>,
-      Home: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>,
+      Home: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 001 1m-6 0h6"/></svg>,
       Back: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
     };
 
@@ -80,20 +80,12 @@
       const navigate = (newView, deck = null) => { setActiveDeck(deck); setView(newView); setMenuOpen(false); };
 
       const handlePlayIntro = () => {
+         setIntroState('playing');
          if(videoRef.current) {
-             // Il Play avviene istantaneamente al click dell'utente (Bypassa i blocchi del browser)
-             const playPromise = videoRef.current.play();
-             if (playPromise !== undefined) {
-                 playPromise.then(() => {
-                     // Solo se il video parte con successo, cambiamo la grafica
-                     setIntroState('playing');
-                 }).catch(e => {
-                     console.error("Errore riproduzione video o video assente:", e);
-                     setIntroState('finished'); 
-                 });
-             }
-         } else {
-             setIntroState('finished');
+             videoRef.current.play().catch(e => {
+                 console.error("Errore riproduzione video:", e);
+                 setIntroState('finished'); 
+             });
          }
       };
 
@@ -112,8 +104,7 @@
                     ref={videoRef} 
                     playsInline 
                     onEnded={finishIntro}
-                    onError={finishIntro}
-                    className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${introState === 'playing' ? 'opacity-100 z-10' : 'opacity-0 z-[-1]'}`}
+                    className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${introState === 'playing' ? 'opacity-100' : 'opacity-0'}`}
                 >
                    <source src="intro.mp4" type="video/mp4" />
                 </video>
@@ -1319,7 +1310,7 @@ ${listText}`;
                  🤖 Copia Prompt IA (Gemini/ChatGPT)
                </button>
                
-               <button onClick={copyList} className="w-full bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-xl shadow border border-gray-600 flex items-center justify-center gap-2 mt-2 transition-colors">
+               <button onClick={copyList} className="w-full bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-xl shadow border border-gray-600 flex items-center justify-center gap-2 transition-colors">
                  📋 Copia solo Lista Testuale
                </button>
              </div>
@@ -1351,7 +1342,7 @@ ${listText}`;
       );
     };
 
-    // --- GAME UTILITY (LIFE TRACKER, MANA E SINCRONIZZAZIONE DANNI CMDR) ---
+    // --- GAME UTILITY ---
     const GameUtility = ({view, setView}) => {
       const [setup, setSetup] = useState(true);
       const [numPlayers, setNumPlayers] = useState(4);
