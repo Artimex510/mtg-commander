@@ -79,14 +79,18 @@
 
       const navigate = (newView, deck = null) => { setActiveDeck(deck); setView(newView); setMenuOpen(false); };
 
-      // RIMOSSO enterFullscreen() per evitare il conflitto su mobile!
       const handlePlayIntro = () => {
          setIntroState('playing');
          if(videoRef.current) {
-             videoRef.current.play().catch(e => {
-                 console.error("Errore riproduzione video:", e);
-                 setIntroState('finished'); 
-             });
+             // Forziamo il browser a caricare fisicamente il video prima di lanciarlo
+             videoRef.current.load();
+             const playPromise = videoRef.current.play();
+             if (playPromise !== undefined) {
+                 playPromise.catch(e => {
+                     console.error("Errore riproduzione video:", e);
+                     setIntroState('finished'); 
+                 });
+             }
          }
       };
 
@@ -100,15 +104,16 @@
           
           {introState !== 'finished' && (
              <div className="fixed inset-0 z-[200] bg-black flex flex-col items-center justify-center overflow-hidden">
+                
+                {/* VIDEO TAG RISCRITTO IN MODO SICURO E DIRETTO */}
                 <video 
                     ref={videoRef} 
+                    src="intro.mp4"
                     playsInline 
-                    preload="auto"
-                    onEnded={finishIntro} 
-                    className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${introState === 'playing' ? 'opacity-100' : 'opacity-0'}`}
-                >
-                   <source src="intro.mp4" type="video/mp4" />
-                </video>
+                    onEnded={finishIntro}
+                    onError={finishIntro}
+                    className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${introState === 'playing' ? 'opacity-100' : 'opacity-0 z-[-1]'}`}
+                />
 
                 {introState === 'initial' && (
                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 animate-fade z-10">
@@ -1342,7 +1347,7 @@ ${listText}`;
       );
     };
 
-    // --- GAME UTILITY (LIFE TRACKER, MANA E SINCRONIZZAZIONE DANNI CMDR) ---
+    // --- GAME UTILITY ---
     const GameUtility = ({view, setView}) => {
       const [setup, setSetup] = useState(true);
       const [numPlayers, setNumPlayers] = useState(4);
