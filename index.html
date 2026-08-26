@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>MTG Commander Companion</title>
   
+  <!-- IL COLLEGAMENTO AL MANIFEST PER L'APK -->
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#000000">
 
@@ -12,6 +13,7 @@
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+  <!-- LIBRERIA GRATUITA PER GENERARE QR CODE OFFLINE -->
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
   <style>
     body { -webkit-font-smoothing: antialiased; overflow-x: hidden; user-select: none; -webkit-touch-callout: none; background-color: #000; }
@@ -39,7 +41,7 @@
 
     const Icons = {
       Menu: () => <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16"/></svg>,
-      Home: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 001 1m-6 0h6"/></svg>,
+      Home: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>,
       Back: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
     };
 
@@ -99,25 +101,17 @@
           
           {introState !== 'finished' && (
              <div className="fixed inset-0 z-[200] bg-black flex flex-col items-center justify-center overflow-hidden">
-                
-                <video 
-                    ref={videoRef} 
-                    playsInline 
-                    onEnded={finishIntro}
-                    className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${introState === 'playing' ? 'opacity-100' : 'opacity-0'}`}
-                >
+                <video ref={videoRef} playsInline onEnded={finishIntro} className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${introState === 'playing' ? 'opacity-100' : 'opacity-0'}`}>
                    <source src="intro.mp4" type="video/mp4" />
                 </video>
-
                 {introState === 'initial' && (
-                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 animate-fade z-20">
+                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 animate-fade z-10">
                       <img src="mtg-bg.jpg" className="absolute inset-0 w-full h-full object-cover opacity-30 pointer-events-none" />
                       <h2 className="relative z-10 text-4xl font-black text-white drop-shadow-[0_5px_5px_rgba(0,0,0,1)] tracking-widest mb-10">MTG <span className="text-red-500">FOR FUN</span></h2>
                       <button onClick={handlePlayIntro} className="relative z-10 bg-red-600 hover:bg-red-500 text-white font-black text-3xl py-5 px-12 rounded-full shadow-[0_0_40px_rgba(220,38,38,0.8)] animate-pulse border-2 border-red-400 transition-all active:scale-95">▶ START</button>
                       <button onClick={finishIntro} className="relative z-10 mt-8 text-gray-400 font-bold underline px-6 py-2">Skip Intro</button>
                    </div>
                 )}
-                
                 {introState === 'playing' && (
                    <button onClick={finishIntro} className="absolute top-8 right-6 z-[210] bg-black/60 text-white px-4 py-2 rounded-full font-bold border border-white/30 shadow-lg backdrop-blur-sm active:scale-95 animate-fade">Skip ⏭</button>
                 )}
@@ -218,9 +212,12 @@
           .then(c => {
              try {
                  if(c.id) {
-                   let imgUrl = "";
-                   if (c.image_uris && c.image_uris.normal) imgUrl = c.image_uris.normal;
-                   else if (c.card_faces && c.card_faces.length > 0 && c.card_faces[0].image_uris) imgUrl = c.card_faces[0].image_uris.normal;
+                   let imgUrl = ""; let imgBack = null;
+                   if (c.image_uris && c.image_uris.normal) { imgUrl = c.image_uris.normal; } 
+                   else if (c.card_faces && c.card_faces.length > 0) {
+                       if (c.card_faces[0].image_uris) imgUrl = c.card_faces[0].image_uris.normal;
+                       if (c.card_faces.length > 1 && c.card_faces[1].image_uris) imgBack = c.card_faces[1].image_uris.normal;
+                   }
                    
                    setBaseCard({ name: c.name || "Sconosciuta", type: c.type_line || "", img: imgUrl, cmc: c.cmc || 0 });
                    setCustomName(""); setCustomImg(""); setZoom(1); setPosX(50); setPosY(50);
@@ -1072,7 +1069,7 @@
       );
     };
 
-    // --- I MIEI MAZZI E ANALISI ---
+    // --- I MIEI MAZZI, ANALISI E STAMPA ---
     const MyDecks = ({navigate}) => {
       const [decks, setDecks] = useState([]);
       useEffect(() => { setDecks(JSON.parse(localStorage.getItem('mtg_decks') || '[]')); }, []);
@@ -1310,7 +1307,7 @@ ${listText}`;
                  🤖 Copia Prompt IA (Gemini/ChatGPT)
                </button>
                
-               <button onClick={copyList} className="w-full bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-xl shadow border border-gray-600 flex items-center justify-center gap-2 transition-colors">
+               <button onClick={copyList} className="w-full bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-xl shadow border border-gray-600 flex items-center justify-center gap-2 mt-2 transition-colors">
                  📋 Copia solo Lista Testuale
                </button>
              </div>
