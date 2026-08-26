@@ -80,17 +80,20 @@
       const navigate = (newView, deck = null) => { setActiveDeck(deck); setView(newView); setMenuOpen(false); };
 
       const handlePlayIntro = () => {
-         setIntroState('playing');
          if(videoRef.current) {
-             // Forziamo il browser a caricare fisicamente il video prima di lanciarlo
-             videoRef.current.load();
+             // Il Play avviene istantaneamente al click dell'utente (Bypassa i blocchi del browser)
              const playPromise = videoRef.current.play();
              if (playPromise !== undefined) {
-                 playPromise.catch(e => {
-                     console.error("Errore riproduzione video:", e);
+                 playPromise.then(() => {
+                     // Solo se il video parte con successo, cambiamo la grafica
+                     setIntroState('playing');
+                 }).catch(e => {
+                     console.error("Errore riproduzione video o video assente:", e);
                      setIntroState('finished'); 
                  });
              }
+         } else {
+             setIntroState('finished');
          }
       };
 
@@ -105,24 +108,25 @@
           {introState !== 'finished' && (
              <div className="fixed inset-0 z-[200] bg-black flex flex-col items-center justify-center overflow-hidden">
                 
-                {/* VIDEO TAG RISCRITTO IN MODO SICURO E DIRETTO */}
                 <video 
                     ref={videoRef} 
-                    src="intro.mp4"
                     playsInline 
                     onEnded={finishIntro}
                     onError={finishIntro}
-                    className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${introState === 'playing' ? 'opacity-100' : 'opacity-0 z-[-1]'}`}
-                />
+                    className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${introState === 'playing' ? 'opacity-100 z-10' : 'opacity-0 z-[-1]'}`}
+                >
+                   <source src="intro.mp4" type="video/mp4" />
+                </video>
 
                 {introState === 'initial' && (
-                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 animate-fade z-10">
+                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 animate-fade z-20">
                       <img src="mtg-bg.jpg" className="absolute inset-0 w-full h-full object-cover opacity-30 pointer-events-none" />
                       <h2 className="relative z-10 text-4xl font-black text-white drop-shadow-[0_5px_5px_rgba(0,0,0,1)] tracking-widest mb-10">MTG <span className="text-red-500">FOR FUN</span></h2>
                       <button onClick={handlePlayIntro} className="relative z-10 bg-red-600 hover:bg-red-500 text-white font-black text-3xl py-5 px-12 rounded-full shadow-[0_0_40px_rgba(220,38,38,0.8)] animate-pulse border-2 border-red-400 transition-all active:scale-95">▶ START</button>
                       <button onClick={finishIntro} className="relative z-10 mt-8 text-gray-400 font-bold underline px-6 py-2">Skip Intro</button>
                    </div>
                 )}
+                
                 {introState === 'playing' && (
                    <button onClick={finishIntro} className="absolute top-8 right-6 z-[210] bg-black/60 text-white px-4 py-2 rounded-full font-bold border border-white/30 shadow-lg backdrop-blur-sm active:scale-95 animate-fade">Skip ⏭</button>
                 )}
@@ -1347,7 +1351,7 @@ ${listText}`;
       );
     };
 
-    // --- GAME UTILITY ---
+    // --- GAME UTILITY (LIFE TRACKER, MANA E SINCRONIZZAZIONE DANNI CMDR) ---
     const GameUtility = ({view, setView}) => {
       const [setup, setSetup] = useState(true);
       const [numPlayers, setNumPlayers] = useState(4);
