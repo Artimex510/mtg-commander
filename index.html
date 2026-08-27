@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>MTG Commander Companion</title>
   
+  <!-- IL COLLEGAMENTO AL MANIFEST PER L'APK E IL COLORE DI SFONDO -->
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#000000">
 
@@ -52,6 +53,7 @@
       { id: 'C', color: 'bg-gray-400 text-gray-900', label: 'C' }
     ];
 
+    // FUNZIONE PER ORDINAMENTO CARTE NEL MAZZO
     const getCardCategory = (card) => {
         if (card.isCmdrFlag) return "Comandante";
         const t = (card.type || "").toLowerCase();
@@ -64,7 +66,6 @@
         if (t.includes("land")) return "Terre";
         return "Altro";
     };
-
     const categoriesOrder = ["Comandante", "Creature", "Planeswalker", "Istantanei", "Stregonerie", "Artefatti", "Incantesimi", "Terre", "Altro"];
 
     function App() {
@@ -180,10 +181,10 @@
                 {view === 'analysis' && <DeckAnalysis deck={activeDeck} navigate={navigate} />}
                 {view === 'proxycreator' && <ProxyEditor isStandalone={true} />}
                 {view === 'printview' && <PrintView deck={activeDeck} navigate={navigate} />}
+                {view === 'backup' && <BackupView navigate={navigate} />}
                 {(view === 'game' || view === 'game_active') && <GameUtility view={view} setView={setView} />}
                 {view === 'dice' && <DiceRoller />}
                 {view === 'rules' && <RulesAI />}
-                {view === 'backup' && <BackupView navigate={navigate} />}
               </main>
             </div>
           )}
@@ -255,7 +256,7 @@
       return (
          <div className="max-w-md mx-auto bg-gray-800/90 p-6 rounded-xl shadow-lg border border-gray-600 mt-4 backdrop-blur-sm space-y-6">
            <h2 className="text-3xl font-black text-center text-blue-400 drop-shadow-md">Backup & Sync</h2>
-           <p className="text-gray-300 text-sm font-semibold text-center leading-snug">Usa questa funzione per passare istantaneamente tutti i tuoi mazzi e le tue proxy dal Telefono al PC, o viceversa.</p>
+           <p className="text-gray-300 text-sm font-semibold text-center leading-snug">Usa questa funzione per passare istantaneamente tutti i tuoi mazzi e le tue proxy dal Telefono al PC, o viceversa, senza usare il cloud.</p>
 
            <div className="bg-gray-900 p-4 rounded-xl border border-gray-700 shadow-inner">
               <h3 className="text-white font-bold mb-2 flex items-center gap-2">1. Esporta Dati</h3>
@@ -267,7 +268,7 @@
 
            <div className="bg-gray-900 p-4 rounded-xl border border-gray-700 shadow-inner">
               <h3 className="text-white font-bold mb-2 flex items-center gap-2">2. Importa Dati</h3>
-              <p className="text-xs text-red-400 mb-4 font-bold">⚠️ ATTENZIONE: Caricando un file, sovrascriverai i mazzi attuali su questo dispositivo.</p>
+              <p className="text-xs text-red-400 mb-4 font-bold">⚠️ ATTENZIONE: Caricando un file, sovrascriverai i mazzi attuali su questo dispositivo con quelli del backup.</p>
               <label className="block w-full bg-green-600 hover:bg-green-500 text-center py-4 rounded-xl cursor-pointer font-black text-white shadow-[0_0_15px_rgba(22,163,74,0.4)] transition-colors">
                  📂 CARICA BACKUP (.json)
                  <input type="file" accept=".json" className="hidden" onChange={importData} />
@@ -362,7 +363,7 @@
              savedProxies.push(newProxy); localStorage.setItem('mtg_proxies', JSON.stringify(savedProxies));
              
              setIsGenerating(false);
-             if(isStandalone) { alert("Proxy Salvata nel Database! (Vai nel Deckbuilder -> Le Mie Proxy per usarla)"); } 
+             if(isStandalone) { alert("Proxy Salvata nel Database!"); } 
              else { onSave({...card, proxyImage: finalDataUrl, name: customName || card.name, isCustom: true}); }
           };
         };
@@ -377,7 +378,7 @@
           
           {isStandalone && (
             <div className="flex gap-2 mb-4">
-              <input type="text" placeholder="Cerca Originale (es. Sol Ring)" value={baseQuery} onChange={e => setBaseQuery(e.target.value)} className="flex-1 bg-gray-900 border border-gray-600 p-2 rounded text-white outline-none" />
+              <input type="text" placeholder="Originale (es. Sol Ring)" value={baseQuery} onChange={e => setBaseQuery(e.target.value)} className="flex-1 bg-gray-900 border border-gray-600 p-2 rounded text-white outline-none" />
               <button onClick={searchBase} className="bg-purple-600 hover:bg-purple-500 px-3 rounded text-white font-bold transition-colors">Cerca</button>
             </div>
           )}
@@ -446,7 +447,7 @@
       );
     };
 
-    // --- DECKBUILDER ---
+    // --- DECKBUILDER COMPLETO ---
     const DeckBuilder = ({navigate, activeDeck}) => {
       const [deckName, setDeckName] = useState(activeDeck ? activeDeck.name : "");
       const [deckFormat, setDeckFormat] = useState(activeDeck ? (activeDeck.format || 'commander') : 'commander');
@@ -582,7 +583,6 @@
         let searchQuery = query ? `${query} ` : "";
         if (oracleText) searchQuery += `o:"${oracleText}" `;
         if (rarity) searchQuery += `r:${rarity} `;
-        
         if (mana.length > 0) {
            let mStr = mana.join('');
            if (colorMatchType === 'exact') searchQuery += cardType === 'land' ? `id=${mStr} ` : `c=${mStr} `;
@@ -873,7 +873,6 @@
                 </label>
               </div>
 
-              {/* FILTRI COMPLETI */}
               <div className="bg-gray-800/90 p-4 rounded-xl border border-gray-600 shadow-md backdrop-blur-sm">
                  <h3 className="font-bold text-blue-400 mb-2 border-b border-gray-700 pb-1">Ricerca Carte</h3>
                  <p className="text-[10px] text-gray-400 mb-3 text-center uppercase tracking-wider font-bold">🇺🇸 Cerca in Inglese (es. "Plains", "Angel")</p>
@@ -1017,7 +1016,7 @@
                                      )}
                                      
                                      <div className="flex gap-1 ml-auto">
-                                       <button onClick={() => openSubView(setEditingProxyCard, deck.find(c => (c.name + (c.isCustom ? c.proxyImage : "")) === (card.name + (card.isCustom ? card.proxyImage : ""))))} className="text-[10px] bg-purple-700 hover:bg-purple-600 text-white font-bold px-2 py-1 rounded shadow transition-colors">🎨 Proxy</button>
+                                       <button onClick={() => openSubView(setEditingProxyCard, deck.find(c => (c.name + (c.isCustom ? c.proxyImage : "") + c.id) === (card.name + (card.isCustom ? card.proxyImage : "") + card.id)))} className="text-[10px] bg-purple-700 hover:bg-purple-600 text-white font-bold px-2 py-1 rounded shadow transition-colors">🎨 Proxy</button>
                                      </div>
                                    </div>
                                  </div>
@@ -1095,7 +1094,7 @@
 
       const translateCard = (card) => {
         if (card.isCustom) return alert("Le carte Proxy non possono essere tradotte dal database.");
-        if (itaImg) { setShowIta(!showIta); return; } // Switch on/off se già scaricata
+        if (itaImg) { setShowIta(!showIta); return; } 
         setTranslating(true);
         fetch(`https://api.scryfall.com/cards/search?q=!"${card.name}"+lang:it`)
           .then(res => res.json())
@@ -1202,7 +1201,6 @@
       );
     };
 
-    // --- I MIEI MAZZI CON FILTRI E GRIGLIA ---
     const MyDecks = ({navigate}) => {
       const [decks, setDecks] = useState([]);
       const [filterQuery, setFilterQuery] = useState("");
@@ -1290,64 +1288,6 @@
       );
     };
 
-    // --- BACKUP & SYNC ---
-    const BackupView = ({navigate}) => {
-      const exportData = () => {
-         const data = {
-             decks: JSON.parse(localStorage.getItem('mtg_decks') || '[]'),
-             proxies: JSON.parse(localStorage.getItem('mtg_proxies') || '[]')
-         };
-         const blob = new Blob([JSON.stringify(data)], {type: "application/json"});
-         const url = URL.createObjectURL(blob);
-         const a = document.createElement('a');
-         a.href = url;
-         a.download = `MTG_Companion_Backup_${new Date().toISOString().split('T')[0]}.json`;
-         a.click();
-      };
-
-      const importData = (e) => {
-         const file = e.target.files[0];
-         if(!file) return;
-         const reader = new FileReader();
-         reader.onload = (event) => {
-             try {
-                 const data = JSON.parse(event.target.result);
-                 if(data.decks) localStorage.setItem('mtg_decks', JSON.stringify(data.decks));
-                 if(data.proxies) localStorage.setItem('mtg_proxies', JSON.stringify(data.proxies));
-                 alert("Dati Ripristinati con successo! Ora hai tutti i mazzi.");
-                 navigate('mydecks');
-             } catch(err) {
-                 alert("Errore: Il file di backup sembra corrotto.");
-             }
-         };
-         reader.readAsText(file);
-      };
-
-      return (
-         <div className="max-w-md mx-auto bg-gray-800/90 p-6 rounded-xl shadow-lg border border-gray-600 mt-4 backdrop-blur-sm space-y-6">
-           <h2 className="text-3xl font-black text-center text-blue-400 drop-shadow-md">Backup & Sync</h2>
-           <p className="text-gray-300 text-sm font-semibold text-center leading-snug">Usa questa funzione per passare istantaneamente tutti i tuoi mazzi e le tue proxy dal Telefono al PC, o viceversa, senza usare il cloud.</p>
-
-           <div className="bg-gray-900 p-4 rounded-xl border border-gray-700 shadow-inner">
-              <h3 className="text-white font-bold mb-2 flex items-center gap-2">1. Esporta Dati</h3>
-              <p className="text-xs text-gray-400 mb-4">Salva l'intero database sul tuo dispositivo. Invia questo file su Google Drive, Telegram o Email.</p>
-              <button onClick={exportData} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl shadow-[0_0_15px_rgba(37,99,235,0.4)] transition-colors">
-                 💾 SCARICA BACKUP (.json)
-              </button>
-           </div>
-
-           <div className="bg-gray-900 p-4 rounded-xl border border-gray-700 shadow-inner">
-              <h3 className="text-white font-bold mb-2 flex items-center gap-2">2. Importa Dati</h3>
-              <p className="text-xs text-red-400 mb-4 font-bold">⚠️ ATTENZIONE: Caricando un file, sovrascriverai i mazzi attuali su questo dispositivo con quelli del backup.</p>
-              <label className="block w-full bg-green-600 hover:bg-green-500 text-center py-4 rounded-xl cursor-pointer font-black text-white shadow-[0_0_15px_rgba(22,163,74,0.4)] transition-colors">
-                 📂 CARICA BACKUP (.json)
-                 <input type="file" accept=".json" className="hidden" onChange={importData} />
-              </label>
-           </div>
-         </div>
-      );
-    };
-
     const DeckAnalysis = ({deck, navigate}) => {
       const [showQR, setShowQR] = useState(false);
 
@@ -1389,8 +1329,8 @@
 
       const copyPrompt = () => {
          const prompt = `Agisci come un Master professionista e Deckbuilder esperto di Magic: The Gathering.
-Formato del mazzo: ${deck.format || 'Commander'}. ${deck.format==='commander'? `Il comandante è: ${cmdName}.`:''}
-Analizza la curva di mana, controlla la banlist e dammi consigli su cosa togliere e aggiungere per potenziarlo.
+Formato: ${deck.format || 'Commander'}. ${deck.format==='commander'? `Comandante: ${cmdName}.`:''}
+Analizza curva di mana, banlist e dammi consigli su cosa tagliare e aggiungere.
 Lista:
 ${listText}`;
          navigator.clipboard.writeText(prompt);
@@ -1402,47 +1342,60 @@ ${listText}`;
          alert("Lista carte copiata!");
       };
 
-      // TASTO WHATSAPP NATIVO (SHARE API)
       const shareDeck = async () => {
-         const shareData = {
-            title: `Mazzo MTG: ${deck.name}`,
-            text: `Ecco il mio mazzo "${deck.name}":\n\n${listText}`,
-         };
+         const shareData = { title: `Mazzo MTG: ${deck.name}`, text: `Ecco il mio mazzo "${deck.name}":\n\n${listText}`, };
          if (navigator.share) {
             try { await navigator.share(shareData); } catch(e) {}
          } else {
-            copyList();
-            alert("Copiato negli appunti! Ora puoi incollarlo dove vuoi.");
+            copyList(); alert("Copiato negli appunti! Ora puoi incollarlo dove vuoi.");
          }
       };
 
-      // GENERATORE QR CODE OFFLINE
       const generateQR = () => {
-         setShowQR(true);
-         setTimeout(() => {
-            if(window.QRCode) {
-                window.QRCode.toCanvas(document.getElementById('qr-canvas'), listText, { width: 250, margin: 2 }, function (error) {
-                   if (error) console.error(error);
-                });
-            }
-         }, 100);
+         if(window.QRCode) {
+            window.QRCode.toDataURL(listText, { errorCorrectionLevel: 'L', width: 250, margin: 2 }, function (err, url) {
+               if (err) {
+                  alert("Errore: la lista è troppo lunga per un singolo QR code! Prova a condividerla via WhatsApp.");
+                  console.error(err);
+               } else {
+                  const img = new Image();
+                  img.src = url;
+                  img.className = "mb-4 border-4 border-gray-200 rounded";
+                  
+                  const modal = document.createElement("div");
+                  modal.className = "fixed inset-0 bg-black/95 z-[9999] flex flex-col items-center justify-center p-4 animate-fade";
+                  modal.onclick = () => document.body.removeChild(modal);
+                  
+                  const container = document.createElement("div");
+                  container.className = "bg-white p-6 rounded-xl flex flex-col items-center shadow-2xl";
+                  container.onclick = (e) => e.stopPropagation();
+                  
+                  const title = document.createElement("h3");
+                  title.className = "text-black font-black text-xl mb-2 text-center";
+                  title.innerText = "QR Code Mazzo";
+                  
+                  const sub = document.createElement("p");
+                  sub.className = "text-gray-600 text-xs mb-4 text-center font-bold";
+                  sub.innerText = "Fai inquadrare questo codice dalla fotocamera di un amico. Copierà la lista in automatico!";
+                  
+                  const btn = document.createElement("button");
+                  btn.className = "w-full bg-red-600 text-white font-bold py-3 rounded-xl shadow-md";
+                  btn.innerText = "Chiudi";
+                  btn.onclick = () => document.body.removeChild(modal);
+                  
+                  container.appendChild(title);
+                  container.appendChild(sub);
+                  container.appendChild(img);
+                  container.appendChild(btn);
+                  modal.appendChild(container);
+                  document.body.appendChild(modal);
+               }
+            });
+         } else { alert("Libreria QR non caricata."); }
       };
 
       return (
          <div className="max-w-2xl mx-auto space-y-4">
-           
-           {/* MODALE QR CODE */}
-           {showQR && (
-              <div className="fixed inset-0 bg-black/95 z-[9999] flex flex-col items-center justify-center p-4 animate-fade" onClick={() => setShowQR(false)}>
-                <div onClick={e => e.stopPropagation()} className="bg-white p-6 rounded-xl flex flex-col items-center shadow-2xl">
-                   <h3 className="text-black font-black text-xl mb-4 text-center">QR Code Mazzo</h3>
-                   <p className="text-gray-600 text-xs mb-4 text-center font-bold">Fai inquadrare questo codice dalla fotocamera di un amico. Copierà la lista in automatico!</p>
-                   <canvas id="qr-canvas" className="mb-4"></canvas>
-                   <button onClick={() => setShowQR(false)} className="w-full bg-red-600 text-white font-bold py-3 rounded-xl shadow-md">Chiudi</button>
-                </div>
-              </div>
-           )}
-
            <button onClick={() => navigate('mydecks')} className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded font-bold mb-2 shadow transition-colors">⬅ Indietro ai Mazzi</button>
            
            <div className="bg-gray-800/90 p-6 rounded-xl border border-gray-600 shadow-xl backdrop-blur-sm">
@@ -1554,7 +1507,6 @@ ${listText}`;
       );
     };
 
-    // --- GAME UTILITY (LIFE TRACKER, MANA E SINCRONIZZAZIONE DANNI CMDR) ---
     const GameUtility = ({view, setView}) => {
       const [setup, setSetup] = useState(true);
       const [numPlayers, setNumPlayers] = useState(4);
@@ -1575,16 +1527,13 @@ ${listText}`;
       const updateStat = (playerId, stat, amount, opponentId = null) => {
         setPlayers(prev => prev.map(p => {
           if (p.id !== playerId) return p;
-          
           if (opponentId && stat === 'cmdDmg') {
              let newDmg = { ...p.cmdDmg };
              let prevVal = newDmg[opponentId] || 0;
              newDmg[opponentId] = Math.max(0, prevVal + amount);
-             
              let diff = newDmg[opponentId] - prevVal;
              return { ...p, cmdDmg: newDmg, life: Math.max(0, p.life - diff) };
           }
-          
           return { ...p, [stat]: Math.max(0, p[stat] + amount) };
         }));
       };
@@ -1624,7 +1573,7 @@ ${listText}`;
 
       return (
         <div className="fixed inset-0 z-[100] bg-black p-1 flex flex-col h-[100dvh] w-[100dvw]">
-          <button onClick={() => setView('game')} className="absolute top-2 left-2 z-[110] bg-black/80 px-3 py-2 rounded-full text-white text-xs border border-white/20 font-bold shadow-lg">✖ Esci</button>
+          <button onClick={() => setView('game')} className="absolute top-2 left-2 z-[110] bg-black/80 px-3 py-2 rounded-full text-white text-xs border border-white/20 font-bold shadow-lg">✖ Esci / Setup</button>
           <div className={`flex-1 grid ${gridClass} gap-1 h-full w-full pt-12`}>
              {players.map(p => <PlayerCard key={p.id} player={p} updateStat={updateStat} updateMana={updateMana} toggleImmunity={toggleImmunity} opponents={players.filter(op => op.id !== p.id)} updatePlayerConfig={updatePlayerConfig} />)}
           </div>
