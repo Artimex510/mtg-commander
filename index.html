@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>MTG Commander Companion</title>
   
-  <!-- IL COLLEGAMENTO AL MANIFEST PER L'APK -->
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#000000">
 
@@ -13,7 +12,6 @@
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
-  <!-- LIBRERIA GRATUITA PER GENERARE QR CODE OFFLINE -->
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
   <style>
     body { -webkit-font-smoothing: antialiased; overflow-x: hidden; user-select: none; -webkit-touch-callout: none; background-color: #000; }
@@ -41,7 +39,7 @@
 
     const Icons = {
       Menu: () => <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16"/></svg>,
-      Home: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>,
+      Home: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 001 1m-6 0h6"/></svg>,
       Back: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
     };
 
@@ -82,13 +80,13 @@
       const navigate = (newView, deck = null) => { setActiveDeck(deck); setView(newView); setMenuOpen(false); };
 
       const handlePlayIntro = () => {
-         setIntroState('playing');
          if(videoRef.current) {
-             videoRef.current.play().catch(e => {
-                 console.error("Errore riproduzione video:", e);
-                 setIntroState('finished'); 
-             });
-         }
+             const playPromise = videoRef.current.play();
+             if (playPromise !== undefined) {
+                 playPromise.then(() => { setIntroState('playing'); })
+                 .catch(e => { console.error("Errore video:", e); setIntroState('finished'); });
+             }
+         } else { setIntroState('finished'); }
       };
 
       const finishIntro = () => {
@@ -101,17 +99,19 @@
           
           {introState !== 'finished' && (
              <div className="fixed inset-0 z-[200] bg-black flex flex-col items-center justify-center overflow-hidden">
-                <video ref={videoRef} playsInline onEnded={finishIntro} className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${introState === 'playing' ? 'opacity-100' : 'opacity-0'}`}>
+                <video ref={videoRef} playsInline onEnded={finishIntro} onError={finishIntro} className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${introState === 'playing' ? 'opacity-100 z-10' : 'opacity-0 z-[-1]'}`}>
                    <source src="intro.mp4" type="video/mp4" />
                 </video>
+
                 {introState === 'initial' && (
-                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 animate-fade z-10">
+                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 animate-fade z-20">
                       <img src="mtg-bg.jpg" className="absolute inset-0 w-full h-full object-cover opacity-30 pointer-events-none" />
                       <h2 className="relative z-10 text-4xl font-black text-white drop-shadow-[0_5px_5px_rgba(0,0,0,1)] tracking-widest mb-10">MTG <span className="text-red-500">FOR FUN</span></h2>
                       <button onClick={handlePlayIntro} className="relative z-10 bg-red-600 hover:bg-red-500 text-white font-black text-3xl py-5 px-12 rounded-full shadow-[0_0_40px_rgba(220,38,38,0.8)] animate-pulse border-2 border-red-400 transition-all active:scale-95">▶ START</button>
                       <button onClick={finishIntro} className="relative z-10 mt-8 text-gray-400 font-bold underline px-6 py-2">Skip Intro</button>
                    </div>
                 )}
+                
                 {introState === 'playing' && (
                    <button onClick={finishIntro} className="absolute top-8 right-6 z-[210] bg-black/60 text-white px-4 py-2 rounded-full font-bold border border-white/30 shadow-lg backdrop-blur-sm active:scale-95 animate-fade">Skip ⏭</button>
                 )}
@@ -131,7 +131,7 @@
 
               {menuOpen && (
                 <div className="fixed inset-0 bg-black/80 z-50 no-print animate-fade" onClick={() => setMenuOpen(false)}>
-                  <div className="w-64 bg-gray-900 h-full p-6 shadow-2xl border-r border-gray-700" onClick={e => e.stopPropagation()}>
+                  <div className="w-64 bg-gray-900 h-full p-6 shadow-2xl border-r border-gray-700 overflow-y-auto" onClick={e => e.stopPropagation()}>
                     <h2 className="text-2xl font-bold mb-6 border-b border-gray-700 pb-2">Menu</h2>
                     <nav className="space-y-4">
                       <MenuBtn icon={<Icons.Home/>} text="Home" onClick={() => navigate('home')} />
@@ -141,6 +141,13 @@
                       <MenuBtn icon="⚔️" text="Life Tracker" onClick={() => navigate('game')} />
                       <MenuBtn icon="🎲" text="Lancia Dado" onClick={() => navigate('dice')} />
                       <MenuBtn icon="⚖️" text="Regole & Judge" onClick={() => navigate('rules')} />
+                      
+                      <div className="pt-4 mt-4 border-t border-gray-700">
+                         <p className="text-xs text-gray-500 font-bold mb-3 uppercase tracking-wider">🌐 Import / Siti Esterni</p>
+                         <MenuBtn icon="M" text="Moxfield" onClick={() => window.open('https://www.moxfield.com', '_blank')} />
+                         <MenuBtn icon="D" text="Deckstats" onClick={() => window.open('https://deckstats.net', '_blank')} />
+                         <MenuBtn icon="E" text="EDHREC" onClick={() => window.open('https://edhrec.com', '_blank')} />
+                      </div>
                     </nav>
                   </div>
                 </div>
@@ -166,7 +173,7 @@
 
     const MenuBtn = ({icon, text, onClick}) => (
       <button onClick={onClick} className="w-full flex items-center space-x-3 text-gray-300 hover:text-white p-2 rounded hover:bg-gray-800 transition-colors">
-        <span className="flex items-center justify-center w-6 h-6">{icon}</span> <span className="font-semibold">{text}</span>
+        <span className="flex items-center justify-center w-6 h-6">{icon}</span> <span className="font-semibold text-sm">{text}</span>
       </button>
     );
 
@@ -212,12 +219,9 @@
           .then(c => {
              try {
                  if(c.id) {
-                   let imgUrl = ""; let imgBack = null;
-                   if (c.image_uris && c.image_uris.normal) { imgUrl = c.image_uris.normal; } 
-                   else if (c.card_faces && c.card_faces.length > 0) {
-                       if (c.card_faces[0].image_uris) imgUrl = c.card_faces[0].image_uris.normal;
-                       if (c.card_faces.length > 1 && c.card_faces[1].image_uris) imgBack = c.card_faces[1].image_uris.normal;
-                   }
+                   let imgUrl = "";
+                   if (c.image_uris && c.image_uris.normal) imgUrl = c.image_uris.normal;
+                   else if (c.card_faces && c.card_faces.length > 0 && c.card_faces[0].image_uris) imgUrl = c.card_faces[0].image_uris.normal;
                    
                    setBaseCard({ name: c.name || "Sconosciuta", type: c.type_line || "", img: imgUrl, cmc: c.cmc || 0 });
                    setCustomName(""); setCustomImg(""); setZoom(1); setPosX(50); setPosY(50);
@@ -281,7 +285,7 @@
              savedProxies.push(newProxy); localStorage.setItem('mtg_proxies', JSON.stringify(savedProxies));
              
              setIsGenerating(false);
-             if(isStandalone) { alert("Proxy Salvata nel Database! (Vai nel Deckbuilder -> Le Mie Proxy per usarla)"); } 
+             if(isStandalone) { alert("Proxy Salvata nel Database!"); } 
              else { onSave({...card, proxyImage: finalDataUrl, name: customName || card.name, isCustom: true}); }
           };
         };
@@ -296,7 +300,7 @@
           
           {isStandalone && (
             <div className="flex gap-2 mb-4">
-              <input type="text" placeholder="Cerca Originale (es. Sol Ring)" value={baseQuery} onChange={e => setBaseQuery(e.target.value)} className="flex-1 bg-gray-900 border border-gray-600 p-2 rounded text-white outline-none" />
+              <input type="text" placeholder="Originale (es. Sol Ring)" value={baseQuery} onChange={e => setBaseQuery(e.target.value)} className="flex-1 bg-gray-900 border border-gray-600 p-2 rounded text-white outline-none" />
               <button onClick={searchBase} className="bg-purple-600 hover:bg-purple-500 px-3 rounded text-white font-bold transition-colors">Cerca</button>
             </div>
           )}
@@ -311,14 +315,14 @@
              {customImg && (
                  <div className="bg-gray-900 p-3 rounded-lg border border-gray-700 space-y-3">
                     <div className="space-y-1">
-                      <p className="text-[10px] font-bold text-blue-400 uppercase">Cornice Riquadro</p>
+                      <p className="text-[10px] font-bold text-blue-400 uppercase">Cornice</p>
                       <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-white font-bold">Su</span><input type="range" min="0" max="30" step="0.5" value={maskTop} onChange={e=>setMaskTop(e.target.value)} className="w-full accent-blue-500" /></div>
                       <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-white font-bold">Alt.</span><input type="range" min="20" max="100" step="0.5" value={maskHeight} onChange={e=>setMaskHeight(e.target.value)} className="w-full accent-blue-500" /></div>
                       <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-white font-bold">Sx</span><input type="range" min="0" max="20" step="0.2" value={maskLeft} onChange={e=>setMaskLeft(e.target.value)} className="w-full accent-blue-500" /></div>
                       <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-white font-bold">Largh.</span><input type="range" min="50" max="100" step="0.5" value={maskWidth} onChange={e=>setMaskWidth(e.target.value)} className="w-full accent-blue-500" /></div>
                     </div>
                     <div className="space-y-1 pt-2 border-t border-gray-700">
-                      <p className="text-[10px] font-bold text-purple-400 uppercase">Foto Interna</p>
+                      <p className="text-[10px] font-bold text-purple-400 uppercase">Foto</p>
                       <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-white font-bold">Zoom</span><input type="range" min="1" max="3" step="0.1" value={zoom} onChange={e=>setZoom(e.target.value)} className="w-full accent-purple-500" /></div>
                       <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-white font-bold">Orizz</span><input type="range" min="0" max="100" value={posX} onChange={e=>setPosX(e.target.value)} className="w-full accent-purple-500" /></div>
                       <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-white font-bold">Vert</span><input type="range" min="0" max="100" value={posY} onChange={e=>setPosY(e.target.value)} className="w-full accent-purple-500" /></div>
@@ -365,6 +369,21 @@
       );
     };
 
+    // LOGICA DI GRUPPO
+    const getCardCategory = (card) => {
+        if (card.isCmdrFlag) return "Comandante";
+        const t = (card.type || "").toLowerCase();
+        if (t.includes("creature")) return "Creature";
+        if (t.includes("planeswalker")) return "Planeswalker";
+        if (t.includes("instant")) return "Istantanei";
+        if (t.includes("sorcery")) return "Stregonerie";
+        if (t.includes("artifact")) return "Artefatti";
+        if (t.includes("enchantment")) return "Incantesimi";
+        if (t.includes("land")) return "Terre";
+        return "Altro";
+    };
+    const categoriesOrder = ["Comandante", "Creature", "Planeswalker", "Istantanei", "Stregonerie", "Artefatti", "Incantesimi", "Terre", "Altro"];
+
     // --- DECKBUILDER ---
     const DeckBuilder = ({navigate, activeDeck}) => {
       const [deckName, setDeckName] = useState(activeDeck ? activeDeck.name : "");
@@ -375,6 +394,10 @@
       const [query, setQuery] = useState("");
       const [oracleText, setOracleText] = useState("");
       const [mana, setMana] = useState([]);
+      const [colorMatchType, setColorMatchType] = useState('include'); // include, exact
+      const [isMulticolorOnly, setIsMulticolorOnly] = useState(false);
+      const [isCommanderOnly, setIsCommanderOnly] = useState(false);
+
       const [superType, setSuperType] = useState("");
       const [cardType, setCardType] = useState("");
       const [cardType2, setCardType2] = useState("");
@@ -403,6 +426,7 @@
 
       const [itaImg, setItaImg] = useState(null);
       const [itaImgBack, setItaImgBack] = useState(null);
+      const [showIta, setShowIta] = useState(false);
       const [showBack, setShowBack] = useState(false);
       const [translating, setTranslating] = useState(false);
       
@@ -413,7 +437,7 @@
          setSavedScroll(window.scrollY);
          setter(data);
          if(qtySetter) qtySetter(qtyVal);
-         setItaImg(null); setItaImgBack(null); setShowBack(false); setPrintsList([]);
+         setItaImg(null); setItaImgBack(null); setShowIta(false); setShowBack(false); setPrintsList([]);
          window.scrollTo(0, 0);
       };
 
@@ -446,6 +470,7 @@
 
       const translateCard = (card) => {
         if (card.isCustom) return alert("Le carte Proxy non possono essere tradotte dal database.");
+        if (itaImg) { setShowIta(!showIta); return; } // Switch on/off se già scaricata
         setTranslating(true);
         fetch(`https://api.scryfall.com/cards/search?q=!"${card.name}"+lang:it`)
           .then(res => res.json())
@@ -458,7 +483,7 @@
                      if (itCard.card_faces[0].image_uris) iImg = itCard.card_faces[0].image_uris.normal;
                      if (itCard.card_faces.length > 1 && itCard.card_faces[1].image_uris) iImgBack = itCard.card_faces[1].image_uris.normal;
                  }
-                 if (iImg) { setItaImg(iImg); setItaImgBack(iImgBack); }
+                 if (iImg) { setItaImg(iImg); setItaImgBack(iImgBack); setShowIta(true); }
                  else alert("Immagine italiana non trovata.");
              } else { alert("Traduzione ufficiale italiana non stampata per questa carta."); }
              setTranslating(false);
@@ -495,9 +520,15 @@
         let searchQuery = query ? `${query} ` : "";
         if (oracleText) searchQuery += `o:"${oracleText}" `;
         if (rarity) searchQuery += `r:${rarity} `;
+        
         if (mana.length > 0) {
-           if (cardType === 'land') searchQuery += `id>=${mana.join('')} `; else searchQuery += `c>=${mana.join('')} `;
+           let mStr = mana.join('');
+           if (colorMatchType === 'exact') searchQuery += cardType === 'land' ? `id=${mStr} ` : `c=${mStr} `;
+           else searchQuery += cardType === 'land' ? `id>=${mStr} ` : `c>=${mStr} `;
         }
+        if (isMulticolorOnly) searchQuery += `c>1 `;
+        if (isCommanderOnly) searchQuery += `is:commander `;
+
         if (superType) searchQuery += `t:${superType} `;
         if (cardType) searchQuery += `t:${cardType} `;
         if (cardType2) searchQuery += `t:${cardType2} `;
@@ -589,18 +620,16 @@
          closeSubView(setEditingProxyCard);
       };
 
-      const groupedDeck = [];
       const deckMap = {};
       deck.forEach(c => {
          const key = c.name + (c.isCustom ? c.proxyImage : "") + c.id; 
-         if(!deckMap[key]) {
-            deckMap[key] = { ...c, count: 1, isCmdrFlag: c.isCommander };
-            groupedDeck.push(deckMap[key]);
-         } else {
-            deckMap[key].count++;
-            if(c.isCommander) deckMap[key].isCmdrFlag = true;
-         }
+         if(!deckMap[key]) { deckMap[key] = { ...c, count: 1, isCmdrFlag: c.isCommander }; } 
+         else { deckMap[key].count++; if(c.isCommander) deckMap[key].isCmdrFlag = true; }
       });
+      const groupedByCategory = { "Comandante": [], "Creature": [], "Planeswalker": [], "Istantanei": [], "Stregonerie": [], "Artefatti": [], "Incantesimi": [], "Terre": [], "Altro": [] };
+      Object.values(deckMap).forEach(c => { groupedByCategory[getCardCategory(c)].push(c); });
+      Object.keys(groupedByCategory).forEach(k => { groupedByCategory[k].sort((a,b) => a.name.localeCompare(b.name)); });
+
 
       const applyManageQty = () => {
          const cardKey = managingCard.name + (managingCard.isCustom ? managingCard.proxyImage : "") + managingCard.id;
@@ -670,8 +699,10 @@
       const isSubViewActive = selectedCard || managingCard || editingProxyCard;
 
       const RenderModaleCarta = ({ targetCard, setterState, qtyVal, setQtyVal, actionLabel, actionFunc, closeFunc }) => {
-         const currentFront = itaImg || targetCard.proxyImage || targetCard.image || "mtg-bg.jpg";
-         const currentBack = itaImgBack || targetCard.imageBack;
+         const defFront = targetCard.proxyImage || targetCard.image || "mtg-bg.jpg";
+         const defBack = targetCard.imageBack;
+         const currentFront = showIta && itaImg ? itaImg : defFront;
+         const currentBack = showIta && itaImgBack ? itaImgBack : defBack;
          const displayImg = showBack && currentBack ? currentBack : currentFront;
 
          return (
@@ -693,7 +724,7 @@
                  
                  <div className="w-full max-w-sm mb-4 flex gap-2">
                     <button onClick={() => translateCard(targetCard)} disabled={translating} className="flex-1 bg-indigo-700 hover:bg-indigo-600 text-white font-bold py-3 rounded-xl shadow-[0_0_15px_rgba(67,56,202,0.4)] border border-indigo-500 transition-all text-xs">
-                      {translating ? "Traduco..." : "🇮🇹 Tenta Traduzione"}
+                      {translating ? "Traduco..." : (showIta ? "🇬🇧 Torna in Inglese" : "🇮🇹 Vedi in Italiano")}
                     </button>
                     {!targetCard.isCustom && targetCard.printsUrl && (
                         <button onClick={() => fetchOtherPrints(targetCard)} disabled={loadingPrints} className="flex-1 bg-orange-600 hover:bg-orange-500 text-white font-bold py-3 rounded-xl shadow-lg border border-orange-500 transition-all text-xs">
@@ -708,7 +739,7 @@
                        <div className="flex overflow-x-auto gap-2 pb-2">
                           {printsList.map(p => (
                              <img key={p.id} src={p.image} className="w-20 rounded cursor-pointer border-2 border-transparent hover:border-blue-500 shadow-sm shrink-0" 
-                                  onClick={() => { setterState({...targetCard, image: p.image, imageBack: p.imageBack, id: p.id}); setPrintsList([]); }} />
+                                  onClick={() => { setterState({...targetCard, image: p.image, imageBack: p.imageBack, id: p.id}); setPrintsList([]); setShowIta(false); }} />
                           ))}
                        </div>
                     </div>
@@ -793,10 +824,21 @@
                    <input type="text" placeholder="Testo Abilità (es. Landfall, Deathtouch)" value={oracleText} onChange={e => setOracleText(e.target.value)} onKeyPress={e => e.key === 'Enter' && searchCard()} className="flex-1 bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm outline-none" />
                  </div>
                  
-                 <div className="flex gap-2 mb-3 overflow-x-auto pb-1 justify-center">
-                   {ManaColors.map(m => (
-                     <button key={m.id} onClick={() => toggleMana(m.id)} className={`w-8 h-8 shrink-0 rounded-full flex items-center justify-center font-bold border-2 ${mana.includes(m.id) ? 'border-white scale-110' : 'border-transparent opacity-50'} ${m.color}`}>{m.label}</button>
-                   ))}
+                 <div className="flex flex-col gap-2 mb-3 bg-gray-900 p-2 rounded border border-gray-700">
+                    <div className="flex gap-2 overflow-x-auto pb-1 justify-center">
+                      {ManaColors.map(m => (
+                        <button key={m.id} onClick={() => toggleMana(m.id)} className={`w-8 h-8 shrink-0 rounded-full flex items-center justify-center font-bold border-2 ${mana.includes(m.id) ? 'border-white scale-110' : 'border-transparent opacity-50'} ${m.color}`}>{m.label}</button>
+                      ))}
+                    </div>
+                    <div className="flex items-center justify-center gap-2">
+                       <select value={colorMatchType} onChange={e => setColorMatchType(e.target.value)} className="bg-gray-800 border border-gray-600 rounded p-1 text-white text-xs outline-none">
+                          <option value="include">Contiene questi colori</option>
+                          <option value="exact">Esattamente questi colori</option>
+                       </select>
+                       <label className="flex items-center gap-1 text-xs text-purple-300 font-bold bg-purple-900/30 px-2 py-1 rounded border border-purple-700 cursor-pointer">
+                          <input type="checkbox" checked={isMulticolorOnly} onChange={e=>setIsMulticolorOnly(e.target.checked)} className="accent-purple-500" /> Solo Multi
+                       </label>
+                    </div>
                  </div>
 
                  <div className="grid grid-cols-2 gap-2 mb-3">
@@ -833,12 +875,16 @@
                    <input type="text" placeholder="Sottotipo (Goblin)" value={subType} onChange={e => setSubType(e.target.value)} className="col-span-2 bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm outline-none" />
                  </div>
 
-                 <div className="flex gap-2 mb-4">
-                   <span className="text-gray-300 text-sm py-2 font-bold">Costo:</span>
+                 <div className="flex gap-2 mb-4 items-center">
+                   <span className="text-gray-300 text-sm font-bold">Costo:</span>
                    <select value={cmcOp} onChange={e => setCmcOp(e.target.value)} className="bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm font-bold outline-none">
                      <option value="=">=</option><option value=">">&gt;</option><option value="<">&lt;</option>
                    </select>
                    <input type="number" inputMode="numeric" min="0" value={cmcVal} onChange={e => setCmcVal(e.target.value)} className="w-16 bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm font-bold text-center outline-none" />
+                   
+                   <label className="ml-auto flex items-center gap-1 text-xs text-yellow-500 font-bold bg-yellow-900/30 px-2 py-2 rounded border border-yellow-700 cursor-pointer">
+                      <input type="checkbox" checked={isCommanderOnly} onChange={e=>setIsCommanderOnly(e.target.checked)} className="accent-yellow-500" /> ⭐ Solo Cmdr
+                   </label>
                  </div>
 
                  <div className="flex gap-2">
@@ -849,14 +895,6 @@
                      ✨ Mie Proxy
                    </button>
                  </div>
-                 
-                 <button onClick={() => setShowImport(!showImport)} className="text-sm text-blue-400 hover:text-blue-300 underline mt-4 block text-center w-full transition-colors">📥 Importa da Testo (Es. Moxfield)</button>
-                 {showImport && (
-                   <div className="mt-2 animate-fade">
-                     <textarea value={importText} onChange={e => setImportText(e.target.value)} placeholder="1 Sol Ring&#10;1 Command Tower" className="w-full h-24 bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm mb-2 outline-none"></textarea>
-                     <button onClick={handleImport} className="w-full bg-green-600 hover:bg-green-700 p-2 rounded text-white font-bold transition-colors">{loading ? 'Importo...' : 'Aggiungi Carte'}</button>
-                   </div>
-                 )}
               </div>
 
               {allResults.length > 0 && (
@@ -880,50 +918,60 @@
                 </div>
               )}
 
-              {groupedDeck.length > 0 && (
+              {Object.keys(groupedByCategory).some(cat => groupedByCategory[cat].length > 0) && (
                 <div className="bg-gray-800/90 p-3 rounded-xl border border-gray-600 shadow-md backdrop-blur-sm animate-fade">
-                  <h3 className="font-bold text-white mb-3 pl-2">La tua Lista Raggruppata:</h3>
-                  <div className="space-y-2">
-                    {groupedDeck.map((card, index) => (
-                      <div key={index} className={`flex gap-2 bg-gray-900 p-2 rounded-lg border ${card.isCmdrFlag ? 'border-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.3)]' : 'border-gray-700'}`}>
-                        <div className="relative cursor-pointer shrink-0" onClick={() => openSubView(setManagingCard, card, setManageQty, card.count)}>
-                            <img src={card.proxyImage || card.image || "mtg-bg.jpg"} alt={card.name} className="w-14 rounded object-cover shadow border border-gray-600" />
-                            <div className="absolute -top-2 -right-2 bg-blue-600 text-white font-black text-xs w-6 h-6 flex items-center justify-center rounded-full shadow border border-blue-400">
-                               {card.count}
-                            </div>
-                        </div>
-                        
-                        <div className="flex-1 text-sm flex flex-col justify-between pt-1 overflow-hidden">
-                          <h4 className="font-bold text-gray-200 text-xs leading-tight truncate pr-1">{card.name}</h4>
-                          
-                          <div className="flex items-center justify-between mt-1">
-                            {deckFormat === 'commander' && (
-                              <label className="flex items-center gap-1 text-yellow-500 text-[10px] font-bold cursor-pointer">
-                                <input type="checkbox" checked={card.isCmdrFlag} onChange={() => toggleGroupCommander(card.name + (card.isCustom ? card.proxyImage : "") + card.id)} className="accent-yellow-500" /> Cmdr
-                              </label>
-                            )}
-                            
-                            <div className="flex gap-1 ml-auto">
-                              <button onClick={() => openSubView(setEditingProxyCard, deck.find(c => (c.name + (c.isCustom ? c.proxyImage : "")) === (card.name + (card.isCustom ? card.proxyImage : ""))))} className="text-[10px] bg-purple-700 hover:bg-purple-600 text-white font-bold px-2 py-1 rounded shadow transition-colors">🎨 Proxy</button>
-                            </div>
+                  <h3 className="font-bold text-white mb-3 pl-2">La tua Lista:</h3>
+                  <div className="space-y-4">
+                    {categoriesOrder.map(cat => {
+                       const cardsInCat = groupedByCategory[cat];
+                       if(cardsInCat.length === 0) return null;
+                       return (
+                          <div key={cat} className="space-y-2">
+                             <h4 className="text-xs font-black text-gray-400 border-b border-gray-700 pb-1 uppercase">{cat} ({cardsInCat.reduce((acc,c)=>acc+c.count,0)})</h4>
+                             {cardsInCat.map((card, index) => (
+                               <div key={index} className={`flex gap-2 bg-gray-900 p-2 rounded-lg border ${card.isCmdrFlag ? 'border-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.3)]' : 'border-gray-700'}`}>
+                                 <div className="relative cursor-pointer shrink-0" onClick={() => openSubView(setManagingCard, card, setManageQty, card.count)}>
+                                     <img src={card.proxyImage || card.image || "mtg-bg.jpg"} alt={card.name} className="w-14 rounded object-cover shadow border border-gray-600" />
+                                     <div className="absolute -top-2 -right-2 bg-blue-600 text-white font-black text-xs w-6 h-6 flex items-center justify-center rounded-full shadow border border-blue-400">
+                                        {card.count}
+                                     </div>
+                                 </div>
+                                 
+                                 <div className="flex-1 text-sm flex flex-col justify-between pt-1 overflow-hidden">
+                                   <h4 className="font-bold text-gray-200 text-xs leading-tight truncate pr-1">{card.name}</h4>
+                                   
+                                   <div className="flex items-center justify-between mt-1">
+                                     {deckFormat === 'commander' && (
+                                       <label className="flex items-center gap-1 text-yellow-500 text-[10px] font-bold cursor-pointer">
+                                         <input type="checkbox" checked={card.isCmdrFlag} onChange={() => toggleGroupCommander(card.name + (card.isCustom ? card.proxyImage : "") + card.id)} className="accent-yellow-500" /> Cmdr
+                                       </label>
+                                     )}
+                                     
+                                     <div className="flex gap-1 ml-auto">
+                                       <button onClick={() => openSubView(setEditingProxyCard, deck.find(c => (c.name + (c.isCustom ? c.proxyImage : "") + c.id) === (card.name + (card.isCustom ? card.proxyImage : "") + card.id)))} className="text-[10px] bg-purple-700 hover:bg-purple-600 text-white font-bold px-2 py-1 rounded shadow transition-colors">🎨 Proxy</button>
+                                     </div>
+                                   </div>
+                                 </div>
+                               </div>
+                             ))}
                           </div>
-                        </div>
-                      </div>
-                    ))}
+                       )
+                    })}
                   </div>
                 </div>
               )}
-              <button onClick={saveDeck} className="w-full bg-green-600 hover:bg-green-500 text-white font-black py-4 rounded-xl shadow-[0_0_15px_rgba(22,163,74,0.5)] sticky bottom-4 z-40 transition-colors">SALVA MAZZO</button>
+              <button onClick={saveDeck} className="w-full bg-green-600 hover:bg-green-500 text-white font-black py-4 rounded-xl shadow-[0_0_15px_rgba(22,163,74,0.5)] sticky bottom-4 z-40 transition-colors mt-4">SALVA MAZZO</button>
           </div>
         </div>
       );
     };
 
-    // --- VISUALIZZATORE MAZZI (SOLO LETTURA E TRADUZIONE) ---
+    // --- VISUALIZZATORE MAZZI ---
     const DeckViewer = ({deck, navigate}) => {
       const [viewingCard, setViewingCard] = useState(null);
       const [itaImg, setItaImg] = useState(null);
       const [itaImgBack, setItaImgBack] = useState(null);
+      const [showIta, setShowIta] = useState(false);
       const [showBack, setShowBack] = useState(false);
       const [translating, setTranslating] = useState(false);
       const [savedScroll, setSavedScroll] = useState(0);
@@ -933,19 +981,19 @@
 
       if(!deck) return null;
 
-      const groupedDeck = [];
       const deckMap = {};
       deck.cards.forEach(c => {
          const key = c.name + (c.isCustom ? c.proxyImage : "") + c.id; 
-         if(!deckMap[key]) {
-            deckMap[key] = { ...c, count: 1 };
-            groupedDeck.push(deckMap[key]);
-         } else { deckMap[key].count++; }
+         if(!deckMap[key]) { deckMap[key] = { ...c, count: 1 }; } 
+         else { deckMap[key].count++; }
       });
+      const groupedByCategory = { "Comandante": [], "Creature": [], "Planeswalker": [], "Istantanei": [], "Stregonerie": [], "Artefatti": [], "Incantesimi": [], "Terre": [], "Altro": [] };
+      Object.values(deckMap).forEach(c => { groupedByCategory[getCardCategory(c)].push(c); });
+      Object.keys(groupedByCategory).forEach(k => { groupedByCategory[k].sort((a,b) => a.name.localeCompare(b.name)); });
 
       const openViewer = (c) => { 
           setSavedScroll(window.scrollY);
-          setItaImg(null); setItaImgBack(null); setShowBack(false); setPrintsList([]);
+          setItaImg(null); setItaImgBack(null); setShowIta(false); setShowBack(false); setPrintsList([]);
           setViewingCard(c); window.scrollTo(0,0); 
       };
       
@@ -978,6 +1026,7 @@
 
       const translateCard = (card) => {
         if (card.isCustom) return alert("Le carte Proxy non possono essere tradotte dal database.");
+        if (itaImg) { setShowIta(!showIta); return; } // Switch on/off se già scaricata
         setTranslating(true);
         fetch(`https://api.scryfall.com/cards/search?q=!"${card.name}"+lang:it`)
           .then(res => res.json())
@@ -990,12 +1039,18 @@
                      if (itCard.card_faces[0].image_uris) iImg = itCard.card_faces[0].image_uris.normal;
                      if (itCard.card_faces.length > 1 && itCard.card_faces[1].image_uris) iImgBack = itCard.card_faces[1].image_uris.normal;
                  }
-                 if (iImg) { setItaImg(iImg); setItaImgBack(iImgBack); }
+                 if (iImg) { setItaImg(iImg); setItaImgBack(iImgBack); setShowIta(true); }
                  else alert("Immagine italiana non trovata.");
              } else { alert("Traduzione ufficiale italiana non stampata per questa carta."); }
              setTranslating(false);
           }).catch(e => { alert("Errore di connessione."); setTranslating(false); });
       };
+
+      const defFront = viewingCard ? (viewingCard.proxyImage || viewingCard.image || "mtg-bg.jpg") : "";
+      const defBack = viewingCard ? viewingCard.imageBack : null;
+      const currentFront = showIta && itaImg ? itaImg : defFront;
+      const currentBack = showIta && itaImgBack ? itaImgBack : defBack;
+      const displayImg = showBack && currentBack ? currentBack : currentFront;
 
       return (
         <div className="max-w-2xl mx-auto relative z-10 w-full">
@@ -1008,9 +1063,9 @@
                </div>
                
                <div className="flex-1 flex flex-col items-center justify-start p-2">
-                 <img src={showBack && (itaImgBack || viewingCard.imageBack) ? (itaImgBack || viewingCard.imageBack) : (itaImg || viewingCard.proxyImage || viewingCard.image || "mtg-bg.jpg")} alt={viewingCard.name} className="w-auto max-h-[60vh] object-contain rounded-xl mb-4 shadow-2xl" />
+                 <img src={displayImg} alt={viewingCard.name} className="w-auto max-h-[60vh] object-contain rounded-xl mb-4 shadow-2xl" />
                  
-                 {(itaImgBack || viewingCard.imageBack) && !viewingCard.isCustom && (
+                 {currentBack && !viewingCard.isCustom && (
                     <button onClick={() => setShowBack(!showBack)} className="w-full max-w-sm bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 rounded-lg shadow-md border border-gray-500 mb-4 transition-colors">
                        🔄 {showBack ? "Vedi Fronte" : "Vedi Retro"}
                     </button>
@@ -1018,7 +1073,7 @@
 
                  <div className="w-full max-w-sm mb-4 flex gap-2">
                     <button onClick={() => translateCard(viewingCard)} disabled={translating} className="flex-1 bg-indigo-700 hover:bg-indigo-600 text-white font-bold py-3 rounded-xl shadow-[0_0_15px_rgba(67,56,202,0.4)] border border-indigo-500 transition-all text-xs">
-                      {translating ? "Traduco..." : "🇮🇹 Tenta Traduzione"}
+                      {translating ? "Traduco..." : (showIta ? "🇬🇧 Torna in Inglese" : "🇮🇹 Vedi in Italiano")}
                     </button>
                     {!viewingCard.isCustom && viewingCard.printsUrl && (
                         <button onClick={() => fetchOtherPrints(viewingCard)} disabled={loadingPrints} className="flex-1 bg-orange-600 hover:bg-orange-500 text-white font-bold py-3 rounded-xl shadow-lg border border-orange-500 transition-all text-xs">
@@ -1033,7 +1088,7 @@
                        <div className="flex overflow-x-auto gap-2 pb-2">
                           {printsList.map(p => (
                              <img key={p.id} src={p.image} className="w-20 rounded cursor-pointer border-2 border-transparent hover:border-blue-500 shadow-sm shrink-0" 
-                                  onClick={() => { setViewingCard({...viewingCard, image: p.image, imageBack: p.imageBack}); setPrintsList([]); }} />
+                                  onClick={() => { setViewingCard({...viewingCard, image: p.image, imageBack: p.imageBack}); setPrintsList([]); setShowIta(false); }} />
                           ))}
                        </div>
                     </div>
@@ -1047,21 +1102,30 @@
              <div className="bg-gray-800/90 p-6 rounded-xl border border-gray-600 shadow-xl backdrop-blur-sm">
                 <h2 className="text-3xl font-black text-white mb-1 drop-shadow-md">{deck.name}</h2>
                 <p className="text-gray-300 font-bold mb-4">Clicca su una carta per ingrandirla e tradurla!</p>
-                <div className="space-y-2">
-                  {groupedDeck.map((card, index) => (
-                    <div key={index} className="flex gap-2 bg-gray-900 p-2 rounded-lg border border-gray-700 cursor-pointer hover:bg-gray-800 transition-colors" onClick={() => openViewer(card)}>
-                      <div className="relative shrink-0">
-                          <img src={card.proxyImage || card.image || "mtg-bg.jpg"} alt={card.name} className="w-14 rounded object-cover shadow border border-gray-600" />
-                          <div className="absolute -top-2 -right-2 bg-blue-600 text-white font-black text-xs w-6 h-6 flex items-center justify-center rounded-full shadow border border-blue-400">
-                             {card.count}
-                          </div>
-                      </div>
-                      <div className="flex-1 text-sm flex flex-col justify-center overflow-hidden pl-2">
-                        <h4 className="font-bold text-gray-200 text-sm leading-tight truncate">{card.name}</h4>
-                        <p className="text-[10px] text-gray-500 truncate">{card.type}</p>
-                      </div>
-                    </div>
-                  ))}
+                <div className="space-y-4">
+                  {categoriesOrder.map(cat => {
+                     const cardsInCat = groupedByCategory[cat];
+                     if(cardsInCat.length === 0) return null;
+                     return (
+                        <div key={cat} className="space-y-2">
+                           <h4 className="text-xs font-black text-gray-400 border-b border-gray-700 pb-1 uppercase">{cat} ({cardsInCat.reduce((acc,c)=>acc+c.count,0)})</h4>
+                           {cardsInCat.map((card, index) => (
+                             <div key={index} className="flex gap-2 bg-gray-900 p-2 rounded-lg border border-gray-700 cursor-pointer hover:bg-gray-800 transition-colors" onClick={() => openViewer(card)}>
+                               <div className="relative shrink-0">
+                                   <img src={card.proxyImage || card.image || "mtg-bg.jpg"} alt={card.name} className="w-14 rounded object-cover shadow border border-gray-600" />
+                                   <div className="absolute -top-2 -right-2 bg-blue-600 text-white font-black text-xs w-6 h-6 flex items-center justify-center rounded-full shadow border border-blue-400">
+                                      {card.count}
+                                   </div>
+                               </div>
+                               <div className="flex-1 text-sm flex flex-col justify-center overflow-hidden pl-2">
+                                 <h4 className="font-bold text-gray-200 text-sm leading-tight truncate">{card.name}</h4>
+                                 <p className="text-[10px] text-gray-500 truncate">{card.type}</p>
+                               </div>
+                             </div>
+                           ))}
+                        </div>
+                     )
+                  })}
                 </div>
              </div>
            </div>
@@ -1069,9 +1133,11 @@
       );
     };
 
-    // --- I MIEI MAZZI, ANALISI E STAMPA ---
+    // --- I MIEI MAZZI E ANALISI ---
     const MyDecks = ({navigate}) => {
       const [decks, setDecks] = useState([]);
+      const [filterQuery, setFilterQuery] = useState("");
+      
       useEffect(() => { setDecks(JSON.parse(localStorage.getItem('mtg_decks') || '[]')); }, []);
 
       const deleteDeck = (id) => {
@@ -1087,35 +1153,53 @@
         navigator.clipboard.writeText(text); alert("Lista copiata negli appunti!");
       };
 
+      const filteredDecks = decks.filter(d => {
+         const matchName = d.name.toLowerCase().includes(filterQuery.toLowerCase());
+         const cmds = d.cards.filter(c => c.isCommander);
+         const cmdNames = cmds.map(c=>c.name.toLowerCase()).join(" ");
+         const matchCmd = cmdNames.includes(filterQuery.toLowerCase());
+         return matchName || matchCmd;
+      });
+
       if (decks.length === 0) return <div className="text-center text-gray-400 mt-10 font-bold bg-gray-900/80 p-6 rounded-xl border border-gray-700 backdrop-blur-sm mx-4">Nessun mazzo salvato. Vai nel Deckbuilder!</div>;
 
       return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
-          {decks.map(d => {
-            const cmds = d.cards.filter(c => c.isCommander);
-            let mainImg = '';
-            if (cmds.length > 0 && cmds[0]) mainImg = cmds[0].proxyImage || cmds[0].image;
-            else if (d.cards[0]) mainImg = d.cards[0].proxyImage || d.cards[0].image;
+        <div className="max-w-2xl mx-auto space-y-4">
+          <div className="bg-gray-800/90 p-4 rounded-xl border border-gray-600 shadow-md backdrop-blur-sm">
+             <input type="text" placeholder="🔍 Cerca mazzo o comandante..." value={filterQuery} onChange={e => setFilterQuery(e.target.value)} className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white outline-none" />
+          </div>
 
-            return (
-              <div key={d.id} className="bg-gray-800/90 backdrop-blur-sm rounded-xl border border-gray-600 overflow-hidden shadow-xl flex flex-col">
-                 <div className="h-32 bg-gray-900 relative">
-                   <img src={mainImg || "mtg-bg.jpg"} className="w-full h-full object-cover object-top opacity-60" />
-                   <div className="absolute inset-0 bg-gradient-to-t from-gray-900 to-transparent"></div>
-                   <h3 className="absolute bottom-2 left-4 text-2xl font-black text-white drop-shadow-[0_2px_2px_rgba(0,0,0,1)]">{d.name}</h3>
-                   <span className="absolute top-2 right-2 bg-blue-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow uppercase">{d.format || 'Commander'}</span>
-                 </div>
-                 <div className="p-3 bg-gray-900 grid grid-cols-2 gap-2 text-sm font-bold">
-                   <button onClick={() => navigate('viewdeck', d)} className="col-span-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded py-3 shadow text-base transition-colors">👁️ Visualizza & Traduci 🇮🇹</button>
-                   <button onClick={() => navigate('analysis', d)} className="col-span-2 bg-blue-600 hover:bg-blue-500 text-white rounded py-3 shadow text-base transition-colors">📊 Analisi & Condividi 📲</button>
-                   <button onClick={() => navigate('deckbuilder', d)} className="bg-gray-700 hover:bg-gray-600 text-white rounded py-2 shadow transition-colors">Modifica</button>
-                   <button onClick={() => navigate('printview', d)} className="bg-purple-600 hover:bg-purple-500 text-white rounded py-2 shadow transition-colors">Stampa PDF</button>
-                   <button onClick={() => exportText(d)} className="bg-gray-700 hover:bg-gray-600 text-white rounded py-2 shadow transition-colors">Esporta Testo</button>
-                   <button onClick={() => deleteDeck(d.id)} className="bg-red-800 hover:bg-red-700 text-white rounded py-2 shadow transition-colors">Elimina</button>
-                 </div>
-              </div>
-            );
-          })}
+          <div className="grid grid-cols-2 gap-3">
+            {filteredDecks.map(d => {
+              const cmds = d.cards.filter(c => c.isCommander);
+              let mainImg = '';
+              if (cmds.length > 0 && cmds[0]) mainImg = cmds[0].proxyImage || cmds[0].image;
+              else if (d.cards[0]) mainImg = d.cards[0].proxyImage || d.cards[0].image;
+
+              return (
+                <div key={d.id} className="bg-gray-800/90 backdrop-blur-sm rounded-xl border border-gray-600 overflow-hidden shadow-xl flex flex-col">
+                   <div className="h-24 bg-gray-900 relative">
+                     <img src={mainImg || "mtg-bg.jpg"} className="w-full h-full object-cover object-top opacity-60" />
+                     <div className="absolute inset-0 bg-gradient-to-t from-gray-900 to-transparent"></div>
+                     <h3 className="absolute bottom-1 left-2 text-sm font-black text-white drop-shadow-[0_2px_2px_rgba(0,0,0,1)] leading-tight truncate w-11/12">{d.name}</h3>
+                     <span className="absolute top-1 right-1 bg-blue-600 text-white text-[8px] font-bold px-1 rounded shadow uppercase">{d.format || 'Cmdr'}</span>
+                   </div>
+                   <div className="p-2 bg-gray-900 flex flex-col gap-1 text-xs font-bold">
+                     <button onClick={() => navigate('viewdeck', d)} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white rounded py-2 shadow transition-colors truncate">👁️ Vis / 🇮🇹</button>
+                     <button onClick={() => navigate('analysis', d)} className="w-full bg-blue-600 hover:bg-blue-500 text-white rounded py-2 shadow transition-colors truncate">📊 Analisi / QR</button>
+                     <div className="grid grid-cols-2 gap-1">
+                        <button onClick={() => navigate('deckbuilder', d)} className="bg-gray-700 hover:bg-gray-600 text-white rounded py-1 shadow transition-colors">Modifica</button>
+                        <button onClick={() => navigate('printview', d)} className="bg-purple-600 hover:bg-purple-500 text-white rounded py-1 shadow transition-colors">Stampa</button>
+                     </div>
+                     <div className="grid grid-cols-2 gap-1">
+                        <button onClick={() => exportText(d)} className="bg-gray-700 hover:bg-gray-600 text-white rounded py-1 shadow transition-colors">Esporta</button>
+                        <button onClick={() => deleteDeck(d.id)} className="bg-red-800 hover:bg-red-700 text-white rounded py-1 shadow transition-colors">Elimina</button>
+                     </div>
+                   </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       );
     };
@@ -1339,7 +1423,7 @@ ${listText}`;
       );
     };
 
-    // --- GAME UTILITY ---
+    // --- GAME UTILITY (LIFE TRACKER, MANA E SINCRONIZZAZIONE DANNI CMDR) ---
     const GameUtility = ({view, setView}) => {
       const [setup, setSetup] = useState(true);
       const [numPlayers, setNumPlayers] = useState(4);
@@ -1420,6 +1504,8 @@ ${listText}`;
     const PlayerCard = ({ player, updateStat, updateMana, toggleImmunity, opponents, updatePlayerConfig }) => {
       const [viewMode, setViewMode] = useState('life'); 
       const [cmdQuery, setCmdQuery] = useState("");
+      const [isEditingName, setIsEditingName] = useState(false);
+      const [tempName, setTempName] = useState(player.name);
       
       let isDead = false;
       if (!player.immune) {
@@ -1441,10 +1527,20 @@ ${listText}`;
             }).catch(e => console.error(e));
       };
 
+      const saveName = () => {
+         setIsEditingName(false);
+         if(tempName.trim() !== "") updatePlayerConfig(player.id, 'name', tempName.trim());
+         else setTempName(player.name);
+      };
+
       const PlayerHeader = () => (
          <div className="flex justify-between items-center bg-black/60 backdrop-blur-sm p-2 z-30 border-b border-gray-700 shadow-sm h-[15%] min-h-[30px]">
             <div className="flex items-center gap-2 overflow-hidden flex-1">
-               <span className="font-bold text-white text-sm drop-shadow-md truncate">{player.name}</span>
+               {isEditingName ? (
+                  <input autoFocus type="text" value={tempName} onChange={e => setTempName(e.target.value)} onBlur={saveName} onKeyDown={e => e.key === 'Enter' && saveName()} className="bg-gray-700 text-white text-xs px-1 py-0.5 rounded outline-none w-24 border border-gray-500" />
+               ) : (
+                  <span onClick={() => setIsEditingName(true)} className="font-bold text-white text-sm drop-shadow-md truncate cursor-pointer">{player.name} ✎</span>
+               )}
                {player.poison > 0 && <span className="text-green-400 text-[11px] font-black drop-shadow-md whitespace-nowrap">💧{player.poison}</span>}
                {player.emblems > 0 && <span className="text-purple-400 text-[11px] font-black drop-shadow-md whitespace-nowrap">🛡️{player.emblems}</span>}
             </div>
@@ -1510,7 +1606,7 @@ ${listText}`;
 
       return (
         <div className={`w-full h-full flex flex-col rounded-xl border-2 relative ${isDead ? 'border-red-600 bg-red-950/90' : 'border-gray-600 bg-gray-900/90'} overflow-hidden shadow-2xl`}>
-          {player.bgUrl && <img src={player.bgUrl} className="absolute inset-0 w-full h-full object-cover opacity-30 mix-blend-luminosity pointer-events-none" />}
+          {player.bgUrl && <img src={player.bgUrl} className="absolute inset-0 w-full h-full object-contain p-2 opacity-50 pointer-events-none" />}
           {isDead && <div className="absolute inset-0 flex items-center justify-center text-6xl opacity-40 pointer-events-none z-20">💀</div>}
           {player.immune && <div className="absolute inset-0 flex items-center justify-center text-6xl opacity-30 pointer-events-none text-blue-500 drop-shadow-lg z-20">🛡️</div>}
           
