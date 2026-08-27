@@ -142,7 +142,11 @@
                       <MenuBtn icon="🎲" text="Lancia Dado" onClick={() => navigate('dice')} />
                       <MenuBtn icon="⚖️" text="Regole & Judge" onClick={() => navigate('rules')} />
                       
-                      <div className="pt-4 mt-4 border-t border-gray-700">
+                      <div className="pt-2 mt-2 border-t border-gray-700">
+                         <MenuBtn icon="💾" text="Backup & Sync" onClick={() => navigate('backup')} />
+                      </div>
+
+                      <div className="pt-2 mt-2 border-t border-gray-700">
                          <p className="text-xs text-gray-500 font-bold mb-3 uppercase tracking-wider">🌐 Import / Siti Esterni</p>
                          <MenuBtn icon="M" text="Moxfield" onClick={() => window.open('https://www.moxfield.com', '_blank')} />
                          <MenuBtn icon="D" text="Deckstats" onClick={() => window.open('https://deckstats.net', '_blank')} />
@@ -164,6 +168,7 @@
                 {(view === 'game' || view === 'game_active') && <GameUtility view={view} setView={setView} />}
                 {view === 'dice' && <DiceRoller />}
                 {view === 'rules' && <RulesAI />}
+                {view === 'backup' && <BackupView navigate={navigate} />}
               </main>
             </div>
           )}
@@ -199,6 +204,64 @@
         <span className="font-bold text-sm tracking-wide">{text}</span>
       </button>
     );
+
+    // --- BACKUP & SYNC ---
+    const BackupView = ({navigate}) => {
+      const exportData = () => {
+         const data = {
+             decks: JSON.parse(localStorage.getItem('mtg_decks') || '[]'),
+             proxies: JSON.parse(localStorage.getItem('mtg_proxies') || '[]')
+         };
+         const blob = new Blob([JSON.stringify(data)], {type: "application/json"});
+         const url = URL.createObjectURL(blob);
+         const a = document.createElement('a');
+         a.href = url;
+         a.download = `MTG_Companion_Backup_${new Date().toISOString().split('T')[0]}.json`;
+         a.click();
+      };
+
+      const importData = (e) => {
+         const file = e.target.files[0];
+         if(!file) return;
+         const reader = new FileReader();
+         reader.onload = (event) => {
+             try {
+                 const data = JSON.parse(event.target.result);
+                 if(data.decks) localStorage.setItem('mtg_decks', JSON.stringify(data.decks));
+                 if(data.proxies) localStorage.setItem('mtg_proxies', JSON.stringify(data.proxies));
+                 alert("Dati Ripristinati con successo! Ora hai tutti i mazzi.");
+                 navigate('mydecks');
+             } catch(err) {
+                 alert("Errore: Il file di backup sembra corrotto.");
+             }
+         };
+         reader.readAsText(file);
+      };
+
+      return (
+         <div className="max-w-md mx-auto bg-gray-800/90 p-6 rounded-xl shadow-lg border border-gray-600 mt-4 backdrop-blur-sm space-y-6">
+           <h2 className="text-3xl font-black text-center text-blue-400 drop-shadow-md">Backup & Sync</h2>
+           <p className="text-gray-300 text-sm font-semibold text-center leading-snug">Usa questa funzione per passare istantaneamente tutti i tuoi mazzi e le tue proxy dal Telefono al PC, o viceversa, senza usare il cloud.</p>
+
+           <div className="bg-gray-900 p-4 rounded-xl border border-gray-700 shadow-inner">
+              <h3 className="text-white font-bold mb-2 flex items-center gap-2">1. Esporta Dati</h3>
+              <p className="text-xs text-gray-400 mb-4">Salva l'intero database sul tuo dispositivo. Invia questo file su Google Drive, Telegram o Email.</p>
+              <button onClick={exportData} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl shadow-[0_0_15px_rgba(37,99,235,0.4)] transition-colors">
+                 💾 SCARICA BACKUP (.json)
+              </button>
+           </div>
+
+           <div className="bg-gray-900 p-4 rounded-xl border border-gray-700 shadow-inner">
+              <h3 className="text-white font-bold mb-2 flex items-center gap-2">2. Importa Dati</h3>
+              <p className="text-xs text-red-400 mb-4 font-bold">⚠️ ATTENZIONE: Caricando un file, sovrascriverai i mazzi attuali su questo dispositivo con quelli del backup.</p>
+              <label className="block w-full bg-green-600 hover:bg-green-500 text-center py-4 rounded-xl cursor-pointer font-black text-white shadow-[0_0_15px_rgba(22,163,74,0.4)] transition-colors">
+                 📂 CARICA BACKUP (.json)
+                 <input type="file" accept=".json" className="hidden" onChange={importData} />
+              </label>
+           </div>
+         </div>
+      );
+    };
 
     const ProxyEditor = ({card, onClose, onSave, isStandalone}) => {
       const [baseQuery, setBaseQuery] = useState("");
@@ -285,7 +348,7 @@
              savedProxies.push(newProxy); localStorage.setItem('mtg_proxies', JSON.stringify(savedProxies));
              
              setIsGenerating(false);
-             if(isStandalone) { alert("Proxy Salvata nel Database!"); } 
+             if(isStandalone) { alert("Proxy Salvata nel Database! (Vai nel Deckbuilder -> Le Mie Proxy per usarla)"); } 
              else { onSave({...card, proxyImage: finalDataUrl, name: customName || card.name, isCustom: true}); }
           };
         };
@@ -300,7 +363,7 @@
           
           {isStandalone && (
             <div className="flex gap-2 mb-4">
-              <input type="text" placeholder="Originale (es. Sol Ring)" value={baseQuery} onChange={e => setBaseQuery(e.target.value)} className="flex-1 bg-gray-900 border border-gray-600 p-2 rounded text-white outline-none" />
+              <input type="text" placeholder="Cerca Originale (es. Sol Ring)" value={baseQuery} onChange={e => setBaseQuery(e.target.value)} className="flex-1 bg-gray-900 border border-gray-600 p-2 rounded text-white outline-none" />
               <button onClick={searchBase} className="bg-purple-600 hover:bg-purple-500 px-3 rounded text-white font-bold transition-colors">Cerca</button>
             </div>
           )}
@@ -315,14 +378,14 @@
              {customImg && (
                  <div className="bg-gray-900 p-3 rounded-lg border border-gray-700 space-y-3">
                     <div className="space-y-1">
-                      <p className="text-[10px] font-bold text-blue-400 uppercase">Cornice</p>
+                      <p className="text-[10px] font-bold text-blue-400 uppercase">Cornice Riquadro</p>
                       <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-white font-bold">Su</span><input type="range" min="0" max="30" step="0.5" value={maskTop} onChange={e=>setMaskTop(e.target.value)} className="w-full accent-blue-500" /></div>
                       <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-white font-bold">Alt.</span><input type="range" min="20" max="100" step="0.5" value={maskHeight} onChange={e=>setMaskHeight(e.target.value)} className="w-full accent-blue-500" /></div>
                       <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-white font-bold">Sx</span><input type="range" min="0" max="20" step="0.2" value={maskLeft} onChange={e=>setMaskLeft(e.target.value)} className="w-full accent-blue-500" /></div>
                       <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-white font-bold">Largh.</span><input type="range" min="50" max="100" step="0.5" value={maskWidth} onChange={e=>setMaskWidth(e.target.value)} className="w-full accent-blue-500" /></div>
                     </div>
                     <div className="space-y-1 pt-2 border-t border-gray-700">
-                      <p className="text-[10px] font-bold text-purple-400 uppercase">Foto</p>
+                      <p className="text-[10px] font-bold text-purple-400 uppercase">Foto Interna</p>
                       <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-white font-bold">Zoom</span><input type="range" min="1" max="3" step="0.1" value={zoom} onChange={e=>setZoom(e.target.value)} className="w-full accent-purple-500" /></div>
                       <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-white font-bold">Orizz</span><input type="range" min="0" max="100" value={posX} onChange={e=>setPosX(e.target.value)} className="w-full accent-purple-500" /></div>
                       <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-white font-bold">Vert</span><input type="range" min="0" max="100" value={posY} onChange={e=>setPosY(e.target.value)} className="w-full accent-purple-500" /></div>
@@ -394,7 +457,7 @@
       const [query, setQuery] = useState("");
       const [oracleText, setOracleText] = useState("");
       const [mana, setMana] = useState([]);
-      const [colorMatchType, setColorMatchType] = useState('include'); // include, exact
+      const [colorMatchType, setColorMatchType] = useState('include'); 
       const [isMulticolorOnly, setIsMulticolorOnly] = useState(false);
       const [isCommanderOnly, setIsCommanderOnly] = useState(false);
 
@@ -470,7 +533,7 @@
 
       const translateCard = (card) => {
         if (card.isCustom) return alert("Le carte Proxy non possono essere tradotte dal database.");
-        if (itaImg) { setShowIta(!showIta); return; } // Switch on/off se già scaricata
+        if (itaImg) { setShowIta(!showIta); return; } 
         setTranslating(true);
         fetch(`https://api.scryfall.com/cards/search?q=!"${card.name}"+lang:it`)
           .then(res => res.json())
@@ -629,7 +692,6 @@
       const groupedByCategory = { "Comandante": [], "Creature": [], "Planeswalker": [], "Istantanei": [], "Stregonerie": [], "Artefatti": [], "Incantesimi": [], "Terre": [], "Altro": [] };
       Object.values(deckMap).forEach(c => { groupedByCategory[getCardCategory(c)].push(c); });
       Object.keys(groupedByCategory).forEach(k => { groupedByCategory[k].sort((a,b) => a.name.localeCompare(b.name)); });
-
 
       const applyManageQty = () => {
          const cardKey = managingCard.name + (managingCard.isCustom ? managingCard.proxyImage : "") + managingCard.id;
@@ -895,6 +957,14 @@
                      ✨ Mie Proxy
                    </button>
                  </div>
+                 
+                 <button onClick={() => setShowImport(!showImport)} className="text-sm text-blue-400 hover:text-blue-300 underline mt-4 block text-center w-full transition-colors">📥 Importa da Testo (Es. Moxfield)</button>
+                 {showImport && (
+                   <div className="mt-2 animate-fade">
+                     <textarea value={importText} onChange={e => setImportText(e.target.value)} placeholder="1 Sol Ring&#10;1 Command Tower" className="w-full h-24 bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm mb-2 outline-none"></textarea>
+                     <button onClick={handleImport} className="w-full bg-green-600 hover:bg-green-700 p-2 rounded text-white font-bold transition-colors">{loading ? 'Importo...' : 'Aggiungi Carte'}</button>
+                   </div>
+                 )}
               </div>
 
               {allResults.length > 0 && (
@@ -948,7 +1018,7 @@
                                      )}
                                      
                                      <div className="flex gap-1 ml-auto">
-                                       <button onClick={() => openSubView(setEditingProxyCard, deck.find(c => (c.name + (c.isCustom ? c.proxyImage : "") + c.id) === (card.name + (card.isCustom ? card.proxyImage : "") + card.id)))} className="text-[10px] bg-purple-700 hover:bg-purple-600 text-white font-bold px-2 py-1 rounded shadow transition-colors">🎨 Proxy</button>
+                                       <button onClick={() => openSubView(setEditingProxyCard, deck.find(c => (c.name + (c.isCustom ? c.proxyImage : "")) === (card.name + (card.isCustom ? card.proxyImage : ""))))} className="text-[10px] bg-purple-700 hover:bg-purple-600 text-white font-bold px-2 py-1 rounded shadow transition-colors">🎨 Proxy</button>
                                      </div>
                                    </div>
                                  </div>
@@ -984,8 +1054,8 @@
       const deckMap = {};
       deck.cards.forEach(c => {
          const key = c.name + (c.isCustom ? c.proxyImage : "") + c.id; 
-         if(!deckMap[key]) { deckMap[key] = { ...c, count: 1 }; } 
-         else { deckMap[key].count++; }
+         if(!deckMap[key]) { deckMap[key] = { ...c, count: 1, isCmdrFlag: c.isCommander }; } 
+         else { deckMap[key].count++; if(c.isCommander) deckMap[key].isCmdrFlag = true; }
       });
       const groupedByCategory = { "Comandante": [], "Creature": [], "Planeswalker": [], "Istantanei": [], "Stregonerie": [], "Artefatti": [], "Incantesimi": [], "Terre": [], "Altro": [] };
       Object.values(deckMap).forEach(c => { groupedByCategory[getCardCategory(c)].push(c); });
@@ -1063,7 +1133,7 @@
                </div>
                
                <div className="flex-1 flex flex-col items-center justify-start p-2">
-                 <img src={displayImg} alt={viewingCard.name} className="w-auto max-h-[60vh] object-contain rounded-xl mb-4 shadow-2xl" />
+                 <img src={displayImg} alt={viewingCard.name} className="w-auto max-h-[50vh] object-contain rounded-xl mb-4 shadow-2xl" />
                  
                  {currentBack && !viewingCard.isCustom && (
                     <button onClick={() => setShowBack(!showBack)} className="w-full max-w-sm bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 rounded-lg shadow-md border border-gray-500 mb-4 transition-colors">
@@ -1133,12 +1203,15 @@
       );
     };
 
-    // --- I MIEI MAZZI E ANALISI ---
+    // --- I MIEI MAZZI CON FILTRI E GRIGLIA ---
     const MyDecks = ({navigate}) => {
       const [decks, setDecks] = useState([]);
       const [filterQuery, setFilterQuery] = useState("");
+      const [manaFilter, setManaFilter] = useState([]);
       
       useEffect(() => { setDecks(JSON.parse(localStorage.getItem('mtg_decks') || '[]')); }, []);
+
+      const toggleMana = (m) => setManaFilter(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
 
       const deleteDeck = (id) => {
         if(confirm("Eliminare definitivamente?")) {
@@ -1158,7 +1231,16 @@
          const cmds = d.cards.filter(c => c.isCommander);
          const cmdNames = cmds.map(c=>c.name.toLowerCase()).join(" ");
          const matchCmd = cmdNames.includes(filterQuery.toLowerCase());
-         return matchName || matchCmd;
+         const textMatch = matchName || matchCmd;
+
+         let colorMatch = true;
+         if (manaFilter.length > 0) {
+             const deckColors = new Set();
+             cmds.forEach(c => { if(c.colors) c.colors.forEach(col => deckColors.add(col)); });
+             colorMatch = manaFilter.every(m => deckColors.has(m));
+         }
+
+         return textMatch && colorMatch;
       });
 
       if (decks.length === 0) return <div className="text-center text-gray-400 mt-10 font-bold bg-gray-900/80 p-6 rounded-xl border border-gray-700 backdrop-blur-sm mx-4">Nessun mazzo salvato. Vai nel Deckbuilder!</div>;
@@ -1166,7 +1248,12 @@
       return (
         <div className="max-w-2xl mx-auto space-y-4">
           <div className="bg-gray-800/90 p-4 rounded-xl border border-gray-600 shadow-md backdrop-blur-sm">
-             <input type="text" placeholder="🔍 Cerca mazzo o comandante..." value={filterQuery} onChange={e => setFilterQuery(e.target.value)} className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white outline-none" />
+             <input type="text" placeholder="🔍 Cerca mazzo o comandante..." value={filterQuery} onChange={e => setFilterQuery(e.target.value)} className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white outline-none mb-3" />
+             <div className="flex gap-2 overflow-x-auto pb-1 justify-center">
+                 {ManaColors.map(m => (
+                   <button key={m.id} onClick={() => toggleMana(m.id)} className={`w-8 h-8 shrink-0 rounded-full flex items-center justify-center font-bold border-2 ${manaFilter.includes(m.id) ? 'border-white scale-110' : 'border-transparent opacity-50'} ${m.color}`}>{m.label}</button>
+                 ))}
+             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -1201,6 +1288,64 @@
             })}
           </div>
         </div>
+      );
+    };
+
+    // --- BACKUP & SYNC ---
+    const BackupView = ({navigate}) => {
+      const exportData = () => {
+         const data = {
+             decks: JSON.parse(localStorage.getItem('mtg_decks') || '[]'),
+             proxies: JSON.parse(localStorage.getItem('mtg_proxies') || '[]')
+         };
+         const blob = new Blob([JSON.stringify(data)], {type: "application/json"});
+         const url = URL.createObjectURL(blob);
+         const a = document.createElement('a');
+         a.href = url;
+         a.download = `MTG_Companion_Backup_${new Date().toISOString().split('T')[0]}.json`;
+         a.click();
+      };
+
+      const importData = (e) => {
+         const file = e.target.files[0];
+         if(!file) return;
+         const reader = new FileReader();
+         reader.onload = (event) => {
+             try {
+                 const data = JSON.parse(event.target.result);
+                 if(data.decks) localStorage.setItem('mtg_decks', JSON.stringify(data.decks));
+                 if(data.proxies) localStorage.setItem('mtg_proxies', JSON.stringify(data.proxies));
+                 alert("Dati Ripristinati con successo! Ora hai tutti i mazzi.");
+                 navigate('mydecks');
+             } catch(err) {
+                 alert("Errore: Il file di backup sembra corrotto.");
+             }
+         };
+         reader.readAsText(file);
+      };
+
+      return (
+         <div className="max-w-md mx-auto bg-gray-800/90 p-6 rounded-xl shadow-lg border border-gray-600 mt-4 backdrop-blur-sm space-y-6">
+           <h2 className="text-3xl font-black text-center text-blue-400 drop-shadow-md">Backup & Sync</h2>
+           <p className="text-gray-300 text-sm font-semibold text-center leading-snug">Usa questa funzione per passare istantaneamente tutti i tuoi mazzi e le tue proxy dal Telefono al PC, o viceversa, senza usare il cloud.</p>
+
+           <div className="bg-gray-900 p-4 rounded-xl border border-gray-700 shadow-inner">
+              <h3 className="text-white font-bold mb-2 flex items-center gap-2">1. Esporta Dati</h3>
+              <p className="text-xs text-gray-400 mb-4">Salva l'intero database sul tuo dispositivo. Invia questo file su Google Drive, Telegram o Email.</p>
+              <button onClick={exportData} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl shadow-[0_0_15px_rgba(37,99,235,0.4)] transition-colors">
+                 💾 SCARICA BACKUP (.json)
+              </button>
+           </div>
+
+           <div className="bg-gray-900 p-4 rounded-xl border border-gray-700 shadow-inner">
+              <h3 className="text-white font-bold mb-2 flex items-center gap-2">2. Importa Dati</h3>
+              <p className="text-xs text-red-400 mb-4 font-bold">⚠️ ATTENZIONE: Caricando un file, sovrascriverai i mazzi attuali su questo dispositivo con quelli del backup.</p>
+              <label className="block w-full bg-green-600 hover:bg-green-500 text-center py-4 rounded-xl cursor-pointer font-black text-white shadow-[0_0_15px_rgba(22,163,74,0.4)] transition-colors">
+                 📂 CARICA BACKUP (.json)
+                 <input type="file" accept=".json" className="hidden" onChange={importData} />
+              </label>
+           </div>
+         </div>
       );
     };
 
@@ -1423,7 +1568,7 @@ ${listText}`;
       );
     };
 
-    // --- GAME UTILITY (LIFE TRACKER, MANA E SINCRONIZZAZIONE DANNI CMDR) ---
+    // --- GAME UTILITY ---
     const GameUtility = ({view, setView}) => {
       const [setup, setSetup] = useState(true);
       const [numPlayers, setNumPlayers] = useState(4);
