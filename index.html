@@ -52,10 +52,9 @@
       { id: 'C', color: 'bg-gray-400 text-gray-900', label: 'C' }
     ];
 
-    // FUNZIONE PER ORDINAMENTO CARTE NEL MAZZO
     const getCardCategory = (card) => {
         if (card.isSideboard) return "Sideboard";
-        if (card.isCompanion || card.isCompFlag) return "Companion";
+        if (card.isCompanion || card.isCompFlag) return "Companion"; 
         if (card.isCmdrFlag || card.isCommander) return "Comandante";
         const t = (card.type || "").toLowerCase();
         if (t.includes("creature")) return "Creature";
@@ -226,6 +225,7 @@
       </button>
     );
 
+    // --- TAVOLO VIRTUALE (PLAYTESTER SANDBOX COMPLETO) ---
     const PlaytesterSandbox = ({view, setView, navigate}) => {
        const [decks, setDecks] = useState([]);
        const [selectedDeckId, setSelectedDeckId] = useState("");
@@ -368,7 +368,7 @@
           
           setGameState(newGameState);
           setShowCardModal(null);
-          setBrowsingZone(null);
+          setBrowsingZone(null); 
        };
 
        const toggleTap = (uid) => {
@@ -405,6 +405,7 @@
        return (
           <div className="fixed inset-0 z-[200] bg-green-900 flex flex-col h-[100dvh] w-full animate-fade">
              
+             {/* BROWSER INTERO PER MAZZO E CIMITERO */}
              {browsingZone && (
                 <div className="fixed inset-0 bg-gray-900 z-[250] flex flex-col animate-fade pb-10">
                    <div className="flex justify-between items-center p-4 bg-gray-800 border-b border-gray-700 shadow-md">
@@ -430,6 +431,7 @@
                 </div>
              )}
 
+             {/* MODALE AZIONI CARTA */}
              {showCardModal && (
                 <div className="fixed inset-0 bg-black/90 z-[300] flex flex-col items-center justify-center p-4 animate-fade" onClick={() => setShowCardModal(null)}>
                    <div onClick={e => e.stopPropagation()} className="w-full max-w-sm flex flex-col items-center">
@@ -440,7 +442,7 @@
                             <button onClick={() => moveCard(showCardModal.card.uid, 'hand', 'battlefield')} className="col-span-2 bg-green-600 text-white font-bold py-3 rounded shadow">👇 Gioca sul Campo</button>
                          )}
                          {showCardModal.zone === 'commandZone' && (
-                            <button onClick={() => moveCard(showCardModal.card.uid, 'commandZone', 'battlefield')} className="col-span-2 bg-yellow-600 text-white font-bold py-3 rounded shadow">👇 Lancia da Cmd Zone</button>
+                            <button onClick={() => moveCard(showCardModal.card.uid, 'commandZone', 'battlefield')} className="col-span-2 bg-yellow-600 text-white font-bold py-3 rounded shadow">👇 Lancia Comandante/Comp</button>
                          )}
                          {showCardModal.zone === 'battlefield' && (
                             <button onClick={() => moveCard(showCardModal.card.uid, 'battlefield', 'hand')} className="col-span-2 bg-blue-600 text-white font-bold py-3 rounded shadow">👆 Riprendi in Mano</button>
@@ -704,14 +706,14 @@
              {customImg && (
                  <div className="bg-gray-900 p-3 rounded-lg border border-gray-700 space-y-3">
                     <div className="space-y-1">
-                      <p className="text-[10px] font-bold text-blue-400 uppercase">Cornice</p>
+                      <p className="text-[10px] font-bold text-blue-400 uppercase">Cornice Riquadro</p>
                       <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-white font-bold">Su</span><input type="range" min="0" max="30" step="0.5" value={maskTop} onChange={e=>setMaskTop(e.target.value)} className="w-full accent-blue-500" /></div>
                       <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-white font-bold">Alt.</span><input type="range" min="20" max="100" step="0.5" value={maskHeight} onChange={e=>setMaskHeight(e.target.value)} className="w-full accent-blue-500" /></div>
                       <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-white font-bold">Sx</span><input type="range" min="0" max="20" step="0.2" value={maskLeft} onChange={e=>setMaskLeft(e.target.value)} className="w-full accent-blue-500" /></div>
                       <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-white font-bold">Largh.</span><input type="range" min="50" max="100" step="0.5" value={maskWidth} onChange={e=>setMaskWidth(e.target.value)} className="w-full accent-blue-500" /></div>
                     </div>
                     <div className="space-y-1 pt-2 border-t border-gray-700">
-                      <p className="text-[10px] font-bold text-purple-400 uppercase">Foto</p>
+                      <p className="text-[10px] font-bold text-purple-400 uppercase">Foto Interna</p>
                       <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-white font-bold">Zoom</span><input type="range" min="1" max="3" step="0.1" value={zoom} onChange={e=>setZoom(e.target.value)} className="w-full accent-purple-500" /></div>
                       <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-white font-bold">Orizz</span><input type="range" min="0" max="100" value={posX} onChange={e=>setPosX(e.target.value)} className="w-full accent-purple-500" /></div>
                       <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-white font-bold">Vert</span><input type="range" min="0" max="100" value={posY} onChange={e=>setPosY(e.target.value)} className="w-full accent-purple-500" /></div>
@@ -758,7 +760,6 @@
       );
     };
 
-    // --- DECKBUILDER ---
     const DeckBuilder = ({navigate, activeDeck}) => {
       const [deckName, setDeckName] = useState(activeDeck ? activeDeck.name : "");
       const [deckFormat, setDeckFormat] = useState(activeDeck ? (activeDeck.format || 'commander') : 'commander');
@@ -1036,7 +1037,7 @@
 
       const deckMap = {};
       deck.forEach(c => {
-         const key = buildCardKey(c); 
+         const key = buildCardKey(c);
          if(!deckMap[key]) { deckMap[key] = { ...c, count: 1, isCmdrFlag: c.isCommander, isCompFlag: c.isCompanion }; } 
          else { 
             deckMap[key].count++; 
@@ -1082,6 +1083,10 @@
       commanders.forEach(c => { if (c.colors) c.colors.forEach(col => cmdColors.add(col)); });
 
       if (!rulebreaker) {
+         if (deckFormat === 'premodern' && companions.length > 0) {
+             warnings.push("I Companion non sono ammessi nel formato PREMODERN (1995-2003).");
+         }
+
          if (deckFormat === 'commander') {
              if (mainDeckCards.length !== 100) warnings.push(`Commander: il mazzo deve avere 100 carte esatte (ora ${mainDeckCards.length}).`);
              if (sideCards.filter(c=>!c.isCompanion).length > 0) warnings.push(`Commander non prevede una Sideboard (eccetto il Companion).`);
@@ -1096,7 +1101,7 @@
                 warnings.push("Il Comandante dev'essere una Creatura Leggendaria o Planeswalker valido.");
              }
          } else {
-             if (mainDeckCards.length < 60) warnings.push(`${deckFormat.toUpperCase()}: minimo 60 carte maindeck (ora ${mainDeckCards.length}).`);
+             if (mainDeckCards.length < 60) warnings.push(`${deckFormat.toUpperCase()}: minimo 60 carte (ora ${mainDeckCards.length}).`);
              if (sideCards.length > 15) warnings.push(`La Sideboard può avere massimo 15 carte (incluso Companion). (Ora ${sideCards.length}).`);
          }
 
@@ -1162,7 +1167,7 @@
 
          deck.forEach(c => {
             if (c.legalities && c.legalities[deckFormat] !== 'legal' && c.legalities[deckFormat] !== 'restricted') {
-                if(!warnings.includes(`La carta "${c.name}" è BANNATA in ${deckFormat.toUpperCase()}.`)) warnings.push(`La carta "${c.name}" è BANNATA in ${deckFormat.toUpperCase()}.`);
+                if(!warnings.includes(`La carta "${c.name}" è BANNATA/ILLEGALE in ${deckFormat.toUpperCase()}.`)) warnings.push(`La carta "${c.name}" è BANNATA/ILLEGALE in ${deckFormat.toUpperCase()}.`);
             }
             if (deckFormat === 'commander' && !c.isCommander && !c.isCompanion && c.colors && c.colors.length > 0) {
                if (cmdColors.size === 0) hasIllegalColor = true;
@@ -1176,8 +1181,9 @@
             if (!canBypassCount) {
                if (deckFormat === 'commander' && nameCounts[c.name] > 1 && !c.isCompanion) {
                   if(!warnings.includes(`Singleton violata: troppe copie di "${c.name}".`)) warnings.push(`Singleton violata: troppe copie di "${c.name}".`);
-               }
-               if (deckFormat !== 'commander' && nameCounts[c.name] > 4) {
+               } else if (deckFormat === 'vintage' && c.legalities && c.legalities.vintage === 'restricted' && nameCounts[c.name] > 1) {
+                  if(!warnings.includes(`VINTAGE RESTRICTED: massimo 1 copia di "${c.name}".`)) warnings.push(`VINTAGE RESTRICTED: massimo 1 copia di "${c.name}".`);
+               } else if (deckFormat !== 'commander' && nameCounts[c.name] > 4) {
                   if(!warnings.includes(`Massimo 4 copie superato per "${c.name}".`)) warnings.push(`Massimo 4 copie superato per "${c.name}".`);
                }
             }
@@ -1292,7 +1298,9 @@
                      <option value="pioneer">Pioneer</option>
                      <option value="modern">Modern</option>
                      <option value="legacy">Legacy</option>
+                     <option value="vintage">Vintage</option>
                      <option value="pauper">Pauper</option>
+                     <option value="premodern">Premodern</option>
                   </select>
                 </div>
 
@@ -1320,7 +1328,6 @@
                 </label>
               </div>
 
-              {/* FILTRI COMPLETI */}
               <div className="bg-gray-800/90 p-4 rounded-xl border border-gray-600 shadow-md backdrop-blur-sm">
                  <h3 className="font-bold text-blue-400 mb-2 border-b border-gray-700 pb-1 flex justify-between">
                     Ricerca Carte
@@ -1441,7 +1448,6 @@
                 </div>
               )}
 
-              {/* LISTA MAZZO INTERATTIVA CON CMD E PROXY BUTTONS */}
               {Object.keys(groupedByCategory).some(cat => groupedByCategory[cat].length > 0) && (
                 <div className="bg-gray-800/90 p-3 rounded-xl border border-gray-600 shadow-md backdrop-blur-sm animate-fade">
                   <h3 className="font-bold text-white mb-3 pl-2">La tua Lista:</h3>
@@ -1499,7 +1505,6 @@
       );
     };
 
-    // --- VISUALIZZATORE MAZZI (SOLO LETTURA E TRADUZIONE) ---
     const DeckViewer = ({deck, navigate}) => {
       const [viewingCard, setViewingCard] = useState(null);
       const [itaImg, setItaImg] = useState(null);
@@ -1508,7 +1513,6 @@
       const [showBack, setShowBack] = useState(false);
       const [translating, setTranslating] = useState(false);
       const [savedScroll, setSavedScroll] = useState(0);
-
       const [printsList, setPrintsList] = useState([]);
       const [loadingPrints, setLoadingPrints] = useState(false);
 
@@ -1703,7 +1707,6 @@
              cmds.forEach(c => { if(c.colors) c.colors.forEach(col => deckColors.add(col)); });
              colorMatch = manaFilter.every(m => deckColors.has(m));
          }
-
          return textMatch && colorMatch;
       });
 
@@ -1757,7 +1760,6 @@
 
     const DeckAnalysis = ({deck, navigate}) => {
       const [showQR, setShowQR] = useState(false);
-
       if(!deck) return null;
 
       const cmds = deck.cards.filter(c => c.isCommander);
@@ -1794,7 +1796,6 @@
       };
 
       const listText = deck.cards.map(c => `1 ${c.name}`).join('\n');
-
       const copyPrompt = () => {
          const prompt = `Agisci come un Master professionista e Deckbuilder esperto di Magic: The Gathering.
 Formato: ${deck.format || 'Commander'}. ${deck.format==='commander'? `Comandante: ${cmdName}.`:''}
@@ -1804,59 +1805,27 @@ ${listText}`;
          navigator.clipboard.writeText(prompt);
          alert("Prompt copiato! Incollalo su ChatGPT o Gemini.");
       };
-
-      const copyList = () => {
-         navigator.clipboard.writeText(listText);
-         alert("Lista carte copiata!");
-      };
+      const copyList = () => { navigator.clipboard.writeText(listText); alert("Lista carte copiata!"); };
 
       const shareDeck = async () => {
          const shareData = { title: `Mazzo MTG: ${deck.name}`, text: `Ecco il mio mazzo "${deck.name}":\n\n${listText}`, };
          if (navigator.share) {
             try { await navigator.share(shareData); } catch(e) {}
-         } else {
-            copyList(); alert("Copiato negli appunti! Ora puoi incollarlo dove vuoi.");
-         }
+         } else { copyList(); alert("Copiato negli appunti! Ora puoi incollarlo dove vuoi."); }
       };
 
       const generateQR = () => {
          if(window.QRCode) {
             window.QRCode.toDataURL(listText, { errorCorrectionLevel: 'L', width: 250, margin: 2 }, function (err, url) {
-               if (err) {
-                  alert("Errore: la lista è troppo lunga per un singolo QR code! Prova a condividerla via WhatsApp.");
-                  console.error(err);
-               } else {
-                  const img = new Image();
-                  img.src = url;
-                  img.className = "mb-4 border-4 border-gray-200 rounded";
-                  
-                  const modal = document.createElement("div");
-                  modal.className = "fixed inset-0 bg-black/95 z-[9999] flex flex-col items-center justify-center p-4 animate-fade";
-                  modal.onclick = () => document.body.removeChild(modal);
-                  
-                  const container = document.createElement("div");
-                  container.className = "bg-white p-6 rounded-xl flex flex-col items-center shadow-2xl";
-                  container.onclick = (e) => e.stopPropagation();
-                  
-                  const title = document.createElement("h3");
-                  title.className = "text-black font-black text-xl mb-2 text-center";
-                  title.innerText = "QR Code Mazzo";
-                  
-                  const sub = document.createElement("p");
-                  sub.className = "text-gray-600 text-xs mb-4 text-center font-bold";
-                  sub.innerText = "Fai inquadrare questo codice dalla fotocamera di un amico. Copierà la lista in automatico!";
-                  
-                  const btn = document.createElement("button");
-                  btn.className = "w-full bg-red-600 text-white font-bold py-3 rounded-xl shadow-md";
-                  btn.innerText = "Chiudi";
-                  btn.onclick = () => document.body.removeChild(modal);
-                  
-                  container.appendChild(title);
-                  container.appendChild(sub);
-                  container.appendChild(img);
-                  container.appendChild(btn);
-                  modal.appendChild(container);
-                  document.body.appendChild(modal);
+               if (err) { alert("Errore: la lista è troppo lunga per un singolo QR code! Prova a condividerla via WhatsApp."); } 
+               else {
+                  const img = new Image(); img.src = url; img.className = "mb-4 border-4 border-gray-200 rounded";
+                  const modal = document.createElement("div"); modal.className = "fixed inset-0 bg-black/95 z-[9999] flex flex-col items-center justify-center p-4 animate-fade"; modal.onclick = () => document.body.removeChild(modal);
+                  const container = document.createElement("div"); container.className = "bg-white p-6 rounded-xl flex flex-col items-center shadow-2xl"; container.onclick = (e) => e.stopPropagation();
+                  const title = document.createElement("h3"); title.className = "text-black font-black text-xl mb-2 text-center"; title.innerText = "QR Code Mazzo";
+                  const sub = document.createElement("p"); sub.className = "text-gray-600 text-xs mb-4 text-center font-bold"; sub.innerText = "Fai inquadrare questo codice dalla fotocamera di un amico. Copierà la lista in automatico!";
+                  const btn = document.createElement("button"); btn.className = "w-full bg-red-600 text-white font-bold py-3 rounded-xl shadow-md"; btn.innerText = "Chiudi"; btn.onclick = () => document.body.removeChild(modal);
+                  container.appendChild(title); container.appendChild(sub); container.appendChild(img); container.appendChild(btn); modal.appendChild(container); document.body.appendChild(modal);
                }
             });
          } else { alert("Libreria QR non caricata."); }
@@ -1865,7 +1834,6 @@ ${listText}`;
       return (
          <div className="max-w-2xl mx-auto space-y-4">
            <button onClick={() => navigate('mydecks')} className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded font-bold mb-2 shadow transition-colors">⬅ Indietro ai Mazzi</button>
-           
            <div className="bg-gray-800/90 p-6 rounded-xl border border-gray-600 shadow-xl backdrop-blur-sm">
              <h2 className="text-3xl font-black text-white mb-1 drop-shadow-md">{deck.name}</h2>
              <p className="text-gray-300 font-bold mb-6">Formato: <span className="text-blue-400 uppercase">{deck.format || 'Commander'}</span></p>
@@ -1901,7 +1869,6 @@ ${listText}`;
                     })}
                  </div>
                </div>
-
                <div className="bg-gray-900 p-4 rounded-xl border border-gray-700 shadow-inner">
                  <h3 className="text-sm font-bold text-purple-400 mb-4 text-center uppercase">Devozione Colori</h3>
                  <div className="flex items-end gap-2 h-28">
@@ -1925,27 +1892,13 @@ ${listText}`;
              </div>
 
              <div className="space-y-3">
-               <button onClick={shareDeck} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl shadow-[0_0_10px_rgba(37,99,235,0.4)] flex items-center justify-center gap-2 transition-all">
-                 📲 Invia ad un Amico (WhatsApp / Social)
-               </button>
-               
-               <button onClick={generateQR} className="w-full bg-gray-100 hover:bg-white text-black font-bold py-4 rounded-xl shadow-[0_0_10px_rgba(255,255,255,0.4)] flex items-center justify-center gap-2 transition-all">
-                 🔲 Mostra QR Code Mazzo
-               </button>
-
+               <button onClick={shareDeck} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl shadow-[0_0_10px_rgba(37,99,235,0.4)] flex items-center justify-center gap-2 transition-all">📲 Invia ad un Amico (WhatsApp / Social)</button>
+               <button onClick={generateQR} className="w-full bg-gray-100 hover:bg-white text-black font-bold py-4 rounded-xl shadow-[0_0_10px_rgba(255,255,255,0.4)] flex items-center justify-center gap-2 transition-all">🔲 Mostra QR Code Mazzo</button>
                {deck.format === 'commander' && (
-                 <button onClick={openEdhrec} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all mt-6">
-                   🛡️ Sinergie su EDHREC
-                 </button>
+                 <button onClick={openEdhrec} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all mt-6">🛡️ Sinergie su EDHREC</button>
                )}
-               
-               <button onClick={copyPrompt} className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all">
-                 🤖 Copia Prompt IA (Gemini/ChatGPT)
-               </button>
-               
-               <button onClick={copyList} className="w-full bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-xl shadow border border-gray-600 flex items-center justify-center gap-2 mt-2 transition-colors">
-                 📋 Copia solo Lista Testuale
-               </button>
+               <button onClick={copyPrompt} className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all">🤖 Copia Prompt IA (Gemini/ChatGPT)</button>
+               <button onClick={copyList} className="w-full bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-xl shadow border border-gray-600 flex items-center justify-center gap-2 mt-2 transition-colors">📋 Copia solo Lista Testuale</button>
              </div>
            </div>
          </div>
@@ -1995,16 +1948,13 @@ ${listText}`;
       const updateStat = (playerId, stat, amount, opponentId = null) => {
         setPlayers(prev => prev.map(p => {
           if (p.id !== playerId) return p;
-          
           if (opponentId && stat === 'cmdDmg') {
              let newDmg = { ...p.cmdDmg };
              let prevVal = newDmg[opponentId] || 0;
              newDmg[opponentId] = Math.max(0, prevVal + amount);
-             
              let diff = newDmg[opponentId] - prevVal;
              return { ...p, cmdDmg: newDmg, life: Math.max(0, p.life - diff) };
           }
-          
           return { ...p, [stat]: Math.max(0, p[stat] + amount) };
         }));
       };
@@ -2044,7 +1994,7 @@ ${listText}`;
 
       return (
         <div className="fixed inset-0 z-[100] bg-black p-1 flex flex-col h-[100dvh] w-[100dvw]">
-          <button onClick={() => setView('game')} className="absolute top-2 left-2 z-[110] bg-black/80 px-3 py-2 rounded-full text-white text-xs border border-white/20 font-bold shadow-lg">✖ Esci</button>
+          <button onClick={() => setView('game')} className="absolute top-2 left-2 z-[110] bg-black/80 px-3 py-2 rounded-full text-white text-xs border border-white/20 font-bold shadow-lg">✖ Esci / Setup</button>
           <div className={`flex-1 grid ${gridClass} gap-1 h-full w-full pt-12`}>
              {players.map(p => <PlayerCard key={p.id} player={p} updateStat={updateStat} updateMana={updateMana} toggleImmunity={toggleImmunity} opponents={players.filter(op => op.id !== p.id)} updatePlayerConfig={updatePlayerConfig} />)}
           </div>
