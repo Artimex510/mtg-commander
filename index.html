@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>MTG Commander Companion</title>
   
-  <!-- IL COLLEGAMENTO AL MANIFEST PER L'APK -->
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#000000">
 
@@ -53,10 +52,10 @@
       { id: 'C', color: 'bg-gray-400 text-gray-900', label: 'C' }
     ];
 
-    // FUNZIONE PER ORDINAMENTO CARTE NEL MAZZO (Incluso Companion)
+    // FUNZIONE PER ORDINAMENTO CARTE NEL MAZZO
     const getCardCategory = (card) => {
         if (card.isSideboard) return "Sideboard";
-        if (card.isCompanion || card.isCompFlag) return "Companion"; // Priorità Companion
+        if (card.isCompanion || card.isCompFlag) return "Companion";
         if (card.isCmdrFlag || card.isCommander) return "Comandante";
         const t = (card.type || "").toLowerCase();
         if (t.includes("creature")) return "Creature";
@@ -225,7 +224,6 @@
       </button>
     );
 
-    // --- TAVOLO VIRTUALE (PLAYTESTER SANDBOX) ---
     const PlaytesterSandbox = ({view, setView, navigate}) => {
        const [decks, setDecks] = useState([]);
        const [selectedDeckId, setSelectedDeckId] = useState("");
@@ -245,7 +243,6 @@
           
           d.cards.forEach(c => {
              if(c.isSideboard && !c.isCompanion) return; 
-             // Il companion entra in command zone virtuale per essere castato
              if(c.isCommander || c.isCompanion) {
                 initialCmdZone.push({...c, uid: Math.random()});
              } else {
@@ -675,7 +672,7 @@
              savedProxies.push(newProxy); localStorage.setItem('mtg_proxies', JSON.stringify(savedProxies));
              
              setIsGenerating(false);
-             if(isStandalone) { alert("Proxy Salvata nel Database! (Vai nel Deckbuilder -> Le Mie Proxy per usarla)"); } 
+             if(isStandalone) { alert("Proxy Salvata nel Database!"); } 
              else { onSave({...card, proxyImage: finalDataUrl, name: customName || card.name, isCustom: true}); }
           };
         };
@@ -759,7 +756,6 @@
       );
     };
 
-    // --- DECKBUILDER COMPLETO CON REGOLE COMPANION ---
     const buildCardKey = (c) => c.name + (c.isCustom ? c.proxyImage : "") + c.id + !!c.isSideboard + !!c.isCommander + !!c.isCompanion;
 
     const DeckBuilder = ({navigate, activeDeck}) => {
@@ -1104,12 +1100,20 @@
              if (sideCards.length > 15) warnings.push(`La Sideboard può avere massimo 15 carte (incluso Companion). (Ora ${sideCards.length}).`);
          }
 
-         // REGOLE COMPANION
+         // REGOLE COMPANION (Il Cervello)
+         const validCompanions = ["gyruda", "jegantha", "kaheera", "keruga", "lurrus", "lutri", "obosh", "umori", "yorion", "zirda"];
+         
+         companions.forEach(comp => {
+             if (!validCompanions.some(vc => comp.name.toLowerCase().includes(vc))) {
+                 warnings.push(`La carta "${comp.name}" non è un Companion valido (solo i 10 di Ikoria possono esserlo).`);
+             }
+         });
+
          if (companions.length > 1) warnings.push("Puoi avere al massimo 1 Companion in totale.");
          if (companions.length === 1) {
              const comp = companions[0];
              const compName = comp.name.toLowerCase();
-             const deckToCheck = deck.filter(c => !c.isSideboard && !c.isCompanion); // Check main deck
+             const deckToCheck = deck.filter(c => !c.isSideboard && !c.isCompanion); 
              
              if (deckFormat === 'commander' && commanders.length > 0) {
                  let compInvalidColor = false;
@@ -1161,7 +1165,7 @@
             if (c.legalities && c.legalities[deckFormat] !== 'legal' && c.legalities[deckFormat] !== 'restricted') {
                 if(!warnings.includes(`La carta "${c.name}" è BANNATA in ${deckFormat.toUpperCase()}.`)) warnings.push(`La carta "${c.name}" è BANNATA in ${deckFormat.toUpperCase()}.`);
             }
-            if (deckFormat === 'commander' && !c.isCommander && c.colors && c.colors.length > 0) {
+            if (deckFormat === 'commander' && !c.isCommander && !c.isCompanion && c.colors && c.colors.length > 0) {
                if (cmdColors.size === 0) hasIllegalColor = true;
                else c.colors.forEach(col => { if (!cmdColors.has(col)) hasIllegalColor = true; });
             }
@@ -1435,7 +1439,7 @@
                 </div>
               )}
 
-              {/* LISTA MAZZO INTERATTIVA CON CMD, COMP E PROXY BUTTONS */}
+              {/* LISTA MAZZO INTERATTIVA CON CMD E PROXY BUTTONS */}
               {Object.keys(groupedByCategory).some(cat => groupedByCategory[cat].length > 0) && (
                 <div className="bg-gray-800/90 p-3 rounded-xl border border-gray-600 shadow-md backdrop-blur-sm animate-fade">
                   <h3 className="font-bold text-white mb-3 pl-2">La tua Lista:</h3>
@@ -1510,7 +1514,7 @@
 
       const deckMap = {};
       deck.cards.forEach(c => {
-         const key = c.name + (c.isCustom ? c.proxyImage : "") + c.id + !!c.isSideboard + !!c.isCompanion; 
+         const key = buildCardKey(c); 
          if(!deckMap[key]) { deckMap[key] = { ...c, count: 1 }; } 
          else { deckMap[key].count++; }
       });
@@ -1662,7 +1666,6 @@
       );
     };
 
-    // --- ALTRI COMPONENTI BASE (MYDECKS, ANALYSIS, ECC.) ---
     const MyDecks = ({navigate}) => {
       const [decks, setDecks] = useState([]);
       const [filterQuery, setFilterQuery] = useState("");
@@ -1970,7 +1973,6 @@ ${listText}`;
       );
     };
 
-    // --- GAME UTILITY (LIFE TRACKER, MANA E SINCRONIZZAZIONE DANNI CMDR) ---
     const GameUtility = ({view, setView}) => {
       const [setup, setSetup] = useState(true);
       const [numPlayers, setNumPlayers] = useState(4);
