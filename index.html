@@ -52,10 +52,10 @@
       { id: 'C', color: 'bg-gray-400 text-gray-900', label: 'C' }
     ];
 
-    // FUNZIONE PER ORDINAMENTO CARTE NEL MAZZO (Incluso Companion)
+    // FUNZIONE PER ORDINAMENTO CARTE NEL MAZZO
     const getCardCategory = (card) => {
         if (card.isSideboard) return "Sideboard";
-        if (card.isCompanion || card.isCompFlag) return "Companion"; 
+        if (card.isCompanion || card.isCompFlag) return "Companion";
         if (card.isCmdrFlag || card.isCommander) return "Comandante";
         const t = (card.type || "").toLowerCase();
         if (t.includes("creature")) return "Creature";
@@ -69,7 +69,6 @@
     };
     const categoriesOrder = ["Comandante", "Companion", "Creature", "Planeswalker", "Istantanei", "Stregonerie", "Artefatti", "Incantesimi", "Terre", "Altro", "Sideboard"];
 
-    // CHIAVE UNICA PER GESTIRE LE CARTE
     const buildCardKey = (c) => c.name + (c.isCustom ? c.proxyImage : "") + c.id + !!c.isSideboard + !!c.isCommander + !!c.isCompanion;
 
     function App() {
@@ -226,6 +225,312 @@
         <span className="font-bold text-sm tracking-wide">{text}</span>
       </button>
     );
+
+    const PlaytesterSandbox = ({view, setView, navigate}) => {
+       const [decks, setDecks] = useState([]);
+       const [selectedDeckId, setSelectedDeckId] = useState("");
+       const [gameState, setGameState] = useState(null); 
+       const [showCardModal, setShowCardModal] = useState(null);
+       const [browsingZone, setBrowsingZone] = useState(null);
+
+       useEffect(() => { setDecks(JSON.parse(localStorage.getItem('mtg_decks') || '[]')); }, []);
+
+       const startPlaytest = () => {
+          if(!selectedDeckId) return alert("Seleziona un mazzo!");
+          const d = decks.find(x => x.id.toString() === selectedDeckId);
+          if(!d) return;
+
+          let initialLibrary = [];
+          let initialCmdZone = [];
+          
+          d.cards.forEach(c => {
+             if(c.isSideboard && !c.isCompanion) return; 
+             if(c.isCommander || c.isCompanion) {
+                initialCmdZone.push({...c, uid: Math.random()});
+             } else {
+                initialLibrary.push({...c, uid: Math.random()});
+             }
+          });
+
+          for (let i = initialLibrary.length - 1; i > 0; i--) {
+             const j = Math.floor(Math.random() * (i + 1));
+             [initialLibrary[i], initialLibrary[j]] = [initialLibrary[j], initialLibrary[i]];
+          }
+
+          setGameState({
+             deckName: d.name,
+             isCommander: d.format === 'commander',
+             mulliganCount: 0,
+             turn: 1,
+             library: initialLibrary,
+             hand: [],
+             battlefield: [],
+             graveyard: [],
+             exile: [],
+             commandZone: initialCmdZone
+          });
+
+          setView('playtester_active');
+          setTimeout(() => doDraw(7, initialLibrary, []), 100);
+       };
+
+       const doDraw = (amount, currentLib, currentHand) => {
+          let newLib = [...currentLib];
+          let newHand = [...currentHand];
+          for(let i=0; i<amount; i++) {
+             if(newLib.length > 0) newHand.push(newLib.shift());
+          }
+          setGameState(prev => ({...prev, library: newLib, hand: newHand}));
+       };
+
+       const drawOne = () => {
+          if(!gameState || gameState.library.length === 0) return;
+          doDraw(1, gameState.library, gameState.hand);
+       };
+
+       const passTurn = () => {
+          if(!gameState) return;
+          setGameState(prev => ({
+             ...prev, 
+             turn: prev.turn + 1,
+             battlefield: prev.battlefield.map(c => ({...c, isTapped: false}))
+          }));
+          drawOne();
+       };
+
+       const mulligan = () => {
+          if(!gameState) return;
+          let allCards = [...gameState.library, ...gameState.hand, ...gameState.battlefield, ...gameState.graveyard, ...gameState.exile];
+          
+          for (let i = allCards.length - 1; i > 0; i--) {
+             const j = Math.floor(Math.random() * (i + 1));
+             [allCards[i], allCards[j]] = [allCards[j], allCards[i]];
+          }
+
+          let newMull = gameState.mulliganCount + 1;
+          let cardsToBottom = 0;
+          if (gameState.isCommander) {
+              cardsToBottom = newMull > 1 ? newMull - 1 : 0;
+          } else {
+              cardsToBottom = newMull;
+          }
+
+          setGameState(prev => ({
+             ...prev,
+             mulliganCount: newMull,
+             library: allCards,
+             hand: [], battlefield: [], graveyard: [], exile: []
+          }));
+
+          setTimeout(() => {
+             doDraw(7, allCards, []);
+             if(cardsToBottom > 0) alert(`Mulligan a 7 effettuato. Metti ${cardsToBottom} carte in fondo al mazzo! (Tocca la carta in Mano -> Fondo Mazzo)`);
+          }, 100);
+       };
+
+       const shuffleLibrary = () => {
+          if(!gameState) return;
+          let lib = [...gameState.library];
+          for (let i = lib.length - 1; i > 0; i--) {
+             const j = Math.floor(Math.random() * (i + 1));
+             [lib[i], lib[j]] = [lib[j], lib[i]];
+          }
+          setGameState(prev => ({...prev, library: lib}));
+          alert("Mazzo mischiato!");
+       };
+
+       const moveCard = (uid, sourceZone, destZone) => {
+          if(!gameState) return;
+          let cardToMove = null;
+          let newSource = gameState[sourceZone].filter(c => {
+             if(c.uid === uid) { cardToMove = c; return false; }
+             return true;
+          });
+          
+          if(!cardToMove) return;
+          cardToMove.isTapped = false;
+
+          let newGameState = { ...gameState, [sourceZone]: newSource };
+
+          if(destZone === 'libraryBottom') {
+             let lib = sourceZone === 'library' ? [...newSource] : [...gameState.library];
+             lib.push(cardToMove);
+             newGameState.library = lib;
+          } else if(destZone === 'libraryTop') {
+             let lib = sourceZone === 'library' ? [...newSource] : [...gameState.library];
+             lib.unshift(cardToMove);
+             newGameState.library = lib;
+          } else {
+             let newDest = sourceZone === destZone ? [...newSource] : [...gameState[destZone]];
+             newDest.push(cardToMove);
+             newGameState[destZone] = newDest;
+          }
+          
+          setGameState(newGameState);
+          setShowCardModal(null);
+          setBrowsingZone(null);
+       };
+
+       const toggleTap = (uid) => {
+          if(!gameState) return;
+          setGameState(prev => ({
+             ...prev,
+             battlefield: prev.battlefield.map(c => c.uid === uid ? {...c, isTapped: !c.isTapped} : c)
+          }));
+       };
+
+       if(view === 'playtester') {
+          return (
+             <div className="max-w-md mx-auto bg-gray-800/90 p-6 rounded-xl shadow-lg border border-gray-600 mt-4 backdrop-blur-sm space-y-6 animate-fade">
+               <h2 className="text-3xl font-black text-center text-blue-400 drop-shadow-md">Tavolo Virtuale</h2>
+               <p className="text-xs text-center text-gray-300 font-bold mb-4 bg-gray-900 p-2 rounded border border-gray-700">📱 Sandbox manuale per pescare le mani iniziali e testare le aperture del mazzo.</p>
+               
+               {decks.length === 0 ? (
+                  <p className="text-red-400 font-bold text-center">Nessun mazzo salvato.</p>
+               ) : (
+                  <div className="space-y-4">
+                     <select value={selectedDeckId} onChange={e => setSelectedDeckId(e.target.value)} className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white font-bold outline-none">
+                        <option value="">Seleziona un Mazzo...</option>
+                        {decks.map(d => <option key={d.id} value={d.id}>{d.name} ({d.format})</option>)}
+                     </select>
+                     <button onClick={startPlaytest} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl shadow-[0_0_15px_rgba(37,99,235,0.5)] transition-all">AVVIA SIMULATORE</button>
+                  </div>
+               )}
+             </div>
+          );
+       }
+
+       if(!gameState) return null;
+
+       return (
+          <div className="fixed inset-0 z-[200] bg-green-900 flex flex-col h-[100dvh] w-full animate-fade">
+             
+             {browsingZone && (
+                <div className="fixed inset-0 bg-gray-900 z-[250] flex flex-col animate-fade pb-10">
+                   <div className="flex justify-between items-center p-4 bg-gray-800 border-b border-gray-700 shadow-md">
+                      <h2 className="text-xl font-bold text-white uppercase">{browsingZone === 'library' ? 'Mazzo' : (browsingZone === 'graveyard' ? 'Cimitero' : 'Esilio')} ({gameState[browsingZone].length})</h2>
+                      <div className="flex gap-2">
+                         {browsingZone === 'library' && (
+                            <button onClick={shuffleLibrary} className="bg-blue-600 px-3 py-1 rounded text-white font-bold text-sm shadow">Mischia</button>
+                         )}
+                         <button onClick={() => setBrowsingZone(null)} className="bg-red-600 px-3 py-1 rounded text-white font-bold shadow">Chiudi</button>
+                      </div>
+                   </div>
+                   <div className="flex-1 overflow-y-auto p-4 grid grid-cols-3 sm:grid-cols-4 gap-3 content-start">
+                      {gameState[browsingZone].map(c => (
+                         <img 
+                            key={c.uid} 
+                            src={c.proxyImage || c.image || "mtg-bg.jpg"} 
+                            onClick={() => setShowCardModal({card: c, zone: browsingZone})} 
+                            className="w-full rounded shadow-lg cursor-pointer border border-gray-600 active:scale-95 transition-transform" 
+                         />
+                      ))}
+                      {gameState[browsingZone].length === 0 && <p className="col-span-3 text-center text-gray-500 font-bold mt-10">Nessuna carta qui.</p>}
+                   </div>
+                </div>
+             )}
+
+             {showCardModal && (
+                <div className="fixed inset-0 bg-black/90 z-[300] flex flex-col items-center justify-center p-4 animate-fade" onClick={() => setShowCardModal(null)}>
+                   <div onClick={e => e.stopPropagation()} className="w-full max-w-sm flex flex-col items-center">
+                      <img src={showCardModal.card.proxyImage || showCardModal.card.image || "mtg-bg.jpg"} className="w-auto h-[45vh] rounded-xl shadow-2xl mb-6 border border-gray-600" />
+                      
+                      <div className="grid grid-cols-2 gap-2 w-full bg-gray-900 p-4 rounded-xl border border-gray-700">
+                         {showCardModal.zone === 'hand' && (
+                            <button onClick={() => moveCard(showCardModal.card.uid, 'hand', 'battlefield')} className="col-span-2 bg-green-600 text-white font-bold py-3 rounded shadow">👇 Gioca sul Campo</button>
+                         )}
+                         {showCardModal.zone === 'commandZone' && (
+                            <button onClick={() => moveCard(showCardModal.card.uid, 'commandZone', 'battlefield')} className="col-span-2 bg-yellow-600 text-white font-bold py-3 rounded shadow">👇 Lancia da Cmd Zone</button>
+                         )}
+                         {showCardModal.zone === 'battlefield' && (
+                            <button onClick={() => moveCard(showCardModal.card.uid, 'battlefield', 'hand')} className="col-span-2 bg-blue-600 text-white font-bold py-3 rounded shadow">👆 Riprendi in Mano</button>
+                         )}
+                         {(showCardModal.zone === 'graveyard' || showCardModal.zone === 'exile' || showCardModal.zone === 'library') && (
+                            <React.Fragment>
+                               <button onClick={() => moveCard(showCardModal.card.uid, showCardModal.zone, 'hand')} className="bg-blue-600 text-white font-bold py-3 rounded text-sm shadow">🖐 Metti in Mano</button>
+                               <button onClick={() => moveCard(showCardModal.card.uid, showCardModal.zone, 'battlefield')} className="bg-green-600 text-white font-bold py-3 rounded text-sm shadow">👇 Gioca Campo</button>
+                            </React.Fragment>
+                         )}
+                         
+                         <button onClick={() => moveCard(showCardModal.card.uid, showCardModal.zone, 'graveyard')} className="bg-gray-600 text-white font-bold py-2 rounded text-xs">💀 Cimitero</button>
+                         <button onClick={() => moveCard(showCardModal.card.uid, showCardModal.zone, 'exile')} className="bg-gray-400 text-black font-bold py-2 rounded text-xs">🌌 Esilio</button>
+                         <button onClick={() => moveCard(showCardModal.card.uid, showCardModal.zone, 'libraryTop')} className="bg-indigo-700 text-white font-bold py-2 rounded text-xs">Cima Mazzo</button>
+                         <button onClick={() => moveCard(showCardModal.card.uid, showCardModal.zone, 'libraryBottom')} className="bg-indigo-900 text-white font-bold py-2 rounded text-xs">Fondo Mazzo</button>
+                         
+                         <button onClick={() => setShowCardModal(null)} className="col-span-2 bg-red-600 text-white font-bold py-2 rounded mt-2 shadow">❌ Annulla</button>
+                      </div>
+                   </div>
+                </div>
+             )}
+
+             <div className="bg-black/80 text-white p-2 flex justify-between items-center border-b border-green-700 shadow-md h-[10dvh]">
+                <button onClick={() => setView('playtester')} className="bg-red-600 px-3 py-1 rounded font-bold text-xs shadow">Esci</button>
+                <div className="text-center">
+                   <h3 className="font-black text-sm uppercase text-yellow-500">Turno {gameState.turn}</h3>
+                </div>
+                <div className="flex gap-1">
+                   <button onClick={mulligan} className="bg-orange-600 px-2 py-1 rounded font-bold text-xs shadow">Mulligan</button>
+                   <button onClick={passTurn} className="bg-blue-600 px-2 py-1 rounded font-bold text-xs shadow">Passa Turno</button>
+                </div>
+             </div>
+
+             <div className="bg-black/50 p-2 flex justify-between items-center h-[12dvh] overflow-x-auto gap-2">
+                <div className="flex gap-2 border-r border-green-800 pr-2 h-full items-center">
+                   {gameState.commandZone.map(c => (
+                      <img key={c.uid} src={c.proxyImage || c.image || "mtg-bg.jpg"} onClick={() => setShowCardModal({card: c, zone: 'commandZone'})} className="h-full rounded border border-yellow-500 shadow-lg cursor-pointer" />
+                   ))}
+                </div>
+                <div className="flex gap-2 pl-1 overflow-x-auto h-full items-center">
+                   <button onClick={drawOne} className="h-full bg-indigo-900/80 rounded border border-indigo-500 flex items-center justify-center px-3 font-black shadow active:scale-95 transition-transform shrink-0">
+                      PESCA
+                   </button>
+                   <div className="h-full bg-blue-900 rounded border border-blue-500 flex flex-col items-center justify-center px-2 cursor-pointer shrink-0 shadow-lg active:scale-95 transition-transform" onClick={() => setBrowsingZone('library')}>
+                      <span className="text-[10px] font-bold text-blue-300">Mazzo</span>
+                      <span className="font-black text-white">{gameState.library.length}</span>
+                   </div>
+                   <div className="h-full bg-gray-800 rounded border border-gray-500 flex flex-col items-center justify-center px-2 cursor-pointer shrink-0 shadow-lg active:scale-95 transition-transform" onClick={() => setBrowsingZone('graveyard')}>
+                      <span className="text-[10px] font-bold text-gray-400">Cimitero</span>
+                      <span className="font-black text-white">{gameState.graveyard.length}</span>
+                   </div>
+                   {gameState.exile.length > 0 && (
+                     <div className="h-full bg-gray-300 rounded border border-gray-500 flex flex-col items-center justify-center px-2 cursor-pointer shrink-0 shadow-lg active:scale-95 transition-transform" onClick={() => setBrowsingZone('exile')}>
+                        <span className="text-[10px] font-bold text-gray-700">Esilio</span>
+                        <span className="font-black text-black">{gameState.exile.length}</span>
+                     </div>
+                   )}
+                </div>
+             </div>
+
+             <div className="flex-1 bg-green-900/50 p-2 overflow-y-auto relative shadow-[inset_0_0_20px_rgba(0,0,0,0.5)]">
+                {gameState.battlefield.length === 0 && <div className="absolute inset-0 flex items-center justify-center text-green-700/50 font-black text-2xl uppercase pointer-events-none">Tavolo di Gioco</div>}
+                <div className="flex flex-wrap gap-3 content-start">
+                   {gameState.battlefield.map(c => (
+                      <div key={c.uid} className="relative w-20 sm:w-24">
+                         <img 
+                            src={c.proxyImage || c.image || "mtg-bg.jpg"} 
+                            onClick={() => toggleTap(c.uid)}
+                            className={`w-full rounded shadow-md cursor-pointer transition-transform duration-200 border border-black ${c.isTapped ? 'rotate-90 opacity-80' : 'rotate-0'}`} 
+                         />
+                         <button onClick={(e) => { e.stopPropagation(); setShowCardModal({card: c, zone: 'battlefield'}) }} className="absolute -top-2 -right-2 bg-black/80 text-white rounded-full w-6 h-6 flex items-center justify-center text-[10px] font-bold border border-gray-500 shadow">⚙️</button>
+                      </div>
+                   ))}
+                </div>
+             </div>
+
+             <div className="h-[25dvh] bg-black/90 p-2 overflow-x-auto flex items-end gap-[-20px] pb-4 shadow-[0_-5px_15px_rgba(0,0,0,0.5)] z-10 pl-4">
+                {gameState.hand.map((c, i) => (
+                   <img 
+                      key={c.uid} 
+                      src={c.proxyImage || c.image || "mtg-bg.jpg"} 
+                      onClick={() => setShowCardModal({card: c, zone: 'hand'})}
+                      className="h-full rounded-lg shadow-xl cursor-pointer hover:-translate-y-4 hover:z-20 transition-all border border-gray-700" 
+                      style={{ marginLeft: i === 0 ? '0' : '-30px', transformOrigin: 'bottom center' }}
+                   />
+                ))}
+             </div>
+          </div>
+       );
+    };
 
     const BackupView = ({navigate}) => {
       const exportData = () => {
@@ -453,7 +758,7 @@
       );
     };
 
-    // --- DECKBUILDER COMPLETO ---
+    // --- DECKBUILDER ---
     const DeckBuilder = ({navigate, activeDeck}) => {
       const [deckName, setDeckName] = useState(activeDeck ? activeDeck.name : "");
       const [deckFormat, setDeckFormat] = useState(activeDeck ? (activeDeck.format || 'commander') : 'commander');
@@ -791,7 +1096,7 @@
                 warnings.push("Il Comandante dev'essere una Creatura Leggendaria o Planeswalker valido.");
              }
          } else {
-             if (mainDeckCards.length < 60) warnings.push(`${deckFormat.toUpperCase()}: minimo 60 carte (ora ${mainDeckCards.length}).`);
+             if (mainDeckCards.length < 60) warnings.push(`${deckFormat.toUpperCase()}: minimo 60 carte maindeck (ora ${mainDeckCards.length}).`);
              if (sideCards.length > 15) warnings.push(`La Sideboard può avere massimo 15 carte (incluso Companion). (Ora ${sideCards.length}).`);
          }
 
@@ -983,8 +1288,11 @@
                   <span className="text-gray-400 text-sm font-bold ml-2">Formato:</span>
                   <select value={deckFormat} onChange={e => setDeckFormat(e.target.value)} className="bg-gray-800 text-white p-2 rounded font-bold border border-gray-600 outline-none">
                      <option value="commander">Commander</option>
-                     <option value="pauper">Pauper</option>
+                     <option value="standard">Standard</option>
+                     <option value="pioneer">Pioneer</option>
                      <option value="modern">Modern</option>
+                     <option value="legacy">Legacy</option>
+                     <option value="pauper">Pauper</option>
                   </select>
                 </div>
 
@@ -1133,7 +1441,7 @@
                 </div>
               )}
 
-              {/* LISTA MAZZO INTERATTIVA */}
+              {/* LISTA MAZZO INTERATTIVA CON CMD E PROXY BUTTONS */}
               {Object.keys(groupedByCategory).some(cat => groupedByCategory[cat].length > 0) && (
                 <div className="bg-gray-800/90 p-3 rounded-xl border border-gray-600 shadow-md backdrop-blur-sm animate-fade">
                   <h3 className="font-bold text-white mb-3 pl-2">La tua Lista:</h3>
@@ -1148,8 +1456,6 @@
                              </h4>
                              {cardsInCat.map((card, index) => (
                                <div key={index} className={`flex gap-2 bg-gray-900 p-2 rounded-lg border ${card.isCmdrFlag ? 'border-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.3)]' : (card.isCompFlag ? 'border-pink-500 shadow-[0_0_10px_rgba(236,72,153,0.3)]' : (card.isSideboard ? 'border-indigo-500' : 'border-gray-700'))}`}>
-                                 
-                                 {/* FOTO E QUANTITA: Cliccabile per aprire la gestione! */}
                                  <div className="relative cursor-pointer shrink-0" onClick={() => openSubView(setManagingCard, card, setManageQty, card.count)}>
                                      <img src={card.proxyImage || card.image || "mtg-bg.jpg"} alt={card.name} className="w-14 rounded object-cover shadow border border-gray-600" />
                                      <div className="absolute -top-2 -right-2 bg-blue-600 text-white font-black text-xs w-6 h-6 flex items-center justify-center rounded-full shadow border border-blue-400">
@@ -1158,11 +1464,7 @@
                                  </div>
                                  
                                  <div className="flex-1 text-sm flex flex-col justify-between pt-1 overflow-hidden">
-                                   
-                                   {/* NOME DELLA CARTA: Cliccabile per aprire la gestione! */}
-                                   <h4 className="font-bold text-gray-200 text-xs leading-tight truncate pr-1 cursor-pointer" onClick={() => openSubView(setManagingCard, card, setManageQty, card.count)}>
-                                       {card.name}
-                                   </h4>
+                                   <h4 className="font-bold text-gray-200 text-xs leading-tight truncate pr-1 cursor-pointer" onClick={() => openSubView(setManagingCard, card, setManageQty, card.count)}>{card.name}</h4>
                                    
                                    <div className="flex items-center justify-between mt-1">
                                      <div className="flex items-center gap-2">
@@ -1197,8 +1499,7 @@
       );
     };
 
-    // --- FINE DEL DECKBUILDER ---
-
+    // --- VISUALIZZATORE MAZZI (SOLO LETTURA E TRADUZIONE) ---
     const DeckViewer = ({deck, navigate}) => {
       const [viewingCard, setViewingCard] = useState(null);
       const [itaImg, setItaImg] = useState(null);
@@ -1743,7 +2044,7 @@ ${listText}`;
 
       return (
         <div className="fixed inset-0 z-[100] bg-black p-1 flex flex-col h-[100dvh] w-[100dvw]">
-          <button onClick={() => setView('game')} className="absolute top-2 left-2 z-[110] bg-black/80 px-3 py-2 rounded-full text-white text-xs border border-white/20 font-bold shadow-lg">✖ Esci / Setup</button>
+          <button onClick={() => setView('game')} className="absolute top-2 left-2 z-[110] bg-black/80 px-3 py-2 rounded-full text-white text-xs border border-white/20 font-bold shadow-lg">✖ Esci</button>
           <div className={`flex-1 grid ${gridClass} gap-1 h-full w-full pt-12`}>
              {players.map(p => <PlayerCard key={p.id} player={p} updateStat={updateStat} updateMana={updateMana} toggleImmunity={toggleImmunity} opponents={players.filter(op => op.id !== p.id)} updatePlayerConfig={updatePlayerConfig} />)}
           </div>
