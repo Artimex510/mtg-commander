@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>MTG Commander Companion</title>
   
-  <!-- IL COLLEGAMENTO AL MANIFEST PER L'APK -->
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#000000">
 
@@ -13,7 +12,6 @@
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
-  <!-- LIBRERIA GRATUITA PER GENERARE QR CODE OFFLINE -->
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
   <style>
     body { -webkit-font-smoothing: antialiased; overflow-x: hidden; user-select: none; -webkit-touch-callout: none; background-color: #000; }
@@ -225,7 +223,7 @@
       </button>
     );
 
-    // --- TAVOLO VIRTUALE (PLAYTESTER) ---
+    // --- TAVOLO VIRTUALE (PLAYTESTER) BUG FIXATO ---
     const PlaytesterSandbox = ({view, setView, navigate}) => {
        const [decks, setDecks] = useState([]);
        const [selectedDeckId, setSelectedDeckId] = useState("");
@@ -269,7 +267,7 @@
              commandZone: initialCmdZone
           });
 
-          setView('playtester_active'); // BUG FIXATO: ORA CAMBIA LA SCHERMATA
+          setView('playtester_active');
           setTimeout(() => doDraw(7, initialLibrary, []), 100);
        };
 
@@ -327,6 +325,7 @@
           }, 100);
        };
 
+       // RISOLTO IL BUG DI CIMA MAZZO / FONDO MAZZO
        const moveCard = (uid, sourceZone, destZone) => {
           if(!gameState) return;
           let cardToMove = null;
@@ -338,7 +337,6 @@
           if(!cardToMove) return;
           cardToMove.isTapped = false;
 
-          let newDest = [...gameState[destZone]];
           if(destZone === 'libraryBottom') {
              let lib = [...gameState.library];
              lib.push(cardToMove);
@@ -348,6 +346,7 @@
              lib.unshift(cardToMove);
              setGameState(prev => ({...prev, [sourceZone]: newSource, library: lib}));
           } else {
+             let newDest = [...gameState[destZone]];
              newDest.push(cardToMove);
              setGameState(prev => ({...prev, [sourceZone]: newSource, [destZone]: newDest}));
           }
@@ -430,7 +429,7 @@
                 </div>
              </div>
 
-             {/* ZONA COMANDANTE E CIMITERO (Piccola barra in alto) */}
+             {/* ZONA COMANDANTE E CIMITERO */}
              <div className="bg-black/50 p-2 flex justify-between items-center h-[12dvh] overflow-x-auto gap-2">
                 <div className="flex gap-2 border-r border-green-800 pr-2 h-full">
                    {gameState.commandZone.map(c => (
@@ -1509,6 +1508,7 @@
       );
     };
 
+    // --- I MIEI MAZZI CON FILTRI E GRIGLIA ---
     const MyDecks = ({navigate}) => {
       const [decks, setDecks] = useState([]);
       const [filterQuery, setFilterQuery] = useState("");
@@ -1816,7 +1816,6 @@ ${listText}`;
       );
     };
 
-    // --- GAME UTILITY ---
     const GameUtility = ({view, setView}) => {
       const [setup, setSetup] = useState(true);
       const [numPlayers, setNumPlayers] = useState(4);
