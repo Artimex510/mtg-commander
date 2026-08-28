@@ -13,7 +13,6 @@
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
-  <!-- LIBRERIA GRATUITA PER GENERARE QR CODE OFFLINE -->
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
   <style>
     body { -webkit-font-smoothing: antialiased; overflow-x: hidden; user-select: none; -webkit-touch-callout: none; background-color: #000; }
@@ -41,7 +40,7 @@
 
     const Icons = {
       Menu: () => <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16"/></svg>,
-      Home: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>,
+      Home: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 001 1m-6 0h6"/></svg>,
       Back: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
     };
 
@@ -54,9 +53,11 @@
       { id: 'C', color: 'bg-gray-400 text-gray-900', label: 'C' }
     ];
 
+    // FUNZIONE PER ORDINAMENTO CARTE NEL MAZZO (Incluso Companion)
     const getCardCategory = (card) => {
         if (card.isSideboard) return "Sideboard";
-        if (card.isCmdrFlag) return "Comandante";
+        if (card.isCompanion || card.isCompFlag) return "Companion"; // Priorità Companion
+        if (card.isCmdrFlag || card.isCommander) return "Comandante";
         const t = (card.type || "").toLowerCase();
         if (t.includes("creature")) return "Creature";
         if (t.includes("planeswalker")) return "Planeswalker";
@@ -67,7 +68,7 @@
         if (t.includes("land")) return "Terre";
         return "Altro";
     };
-    const categoriesOrder = ["Comandante", "Creature", "Planeswalker", "Istantanei", "Stregonerie", "Artefatti", "Incantesimi", "Terre", "Altro", "Sideboard"];
+    const categoriesOrder = ["Comandante", "Companion", "Creature", "Planeswalker", "Istantanei", "Stregonerie", "Artefatti", "Incantesimi", "Terre", "Altro", "Sideboard"];
 
     function App() {
       const [introState, setIntroState] = useState('initial'); 
@@ -243,8 +244,9 @@
           let initialCmdZone = [];
           
           d.cards.forEach(c => {
-             if(c.isSideboard) return;
-             if(c.isCommander) {
+             if(c.isSideboard && !c.isCompanion) return; 
+             // Il companion entra in command zone virtuale per essere castato
+             if(c.isCommander || c.isCompanion) {
                 initialCmdZone.push({...c, uid: Math.random()});
              } else {
                 initialLibrary.push({...c, uid: Math.random()});
@@ -403,6 +405,7 @@
 
        return (
           <div className="fixed inset-0 z-[200] bg-green-900 flex flex-col h-[100dvh] w-full animate-fade">
+             
              {browsingZone && (
                 <div className="fixed inset-0 bg-gray-900 z-[250] flex flex-col animate-fade pb-10">
                    <div className="flex justify-between items-center p-4 bg-gray-800 border-b border-gray-700 shadow-md">
@@ -438,7 +441,7 @@
                             <button onClick={() => moveCard(showCardModal.card.uid, 'hand', 'battlefield')} className="col-span-2 bg-green-600 text-white font-bold py-3 rounded shadow">👇 Gioca sul Campo</button>
                          )}
                          {showCardModal.zone === 'commandZone' && (
-                            <button onClick={() => moveCard(showCardModal.card.uid, 'commandZone', 'battlefield')} className="col-span-2 bg-yellow-600 text-white font-bold py-3 rounded shadow">👇 Lancia Comandante</button>
+                            <button onClick={() => moveCard(showCardModal.card.uid, 'commandZone', 'battlefield')} className="col-span-2 bg-yellow-600 text-white font-bold py-3 rounded shadow">👇 Lancia da Cmd Zone</button>
                          )}
                          {showCardModal.zone === 'battlefield' && (
                             <button onClick={() => moveCard(showCardModal.card.uid, 'battlefield', 'hand')} className="col-span-2 bg-blue-600 text-white font-bold py-3 rounded shadow">👆 Riprendi in Mano</button>
@@ -672,7 +675,7 @@
              savedProxies.push(newProxy); localStorage.setItem('mtg_proxies', JSON.stringify(savedProxies));
              
              setIsGenerating(false);
-             if(isStandalone) { alert("Proxy Salvata nel Database!"); } 
+             if(isStandalone) { alert("Proxy Salvata nel Database! (Vai nel Deckbuilder -> Le Mie Proxy per usarla)"); } 
              else { onSave({...card, proxyImage: finalDataUrl, name: customName || card.name, isCustom: true}); }
           };
         };
@@ -756,11 +759,13 @@
       );
     };
 
-    // --- DECKBUILDER ---
+    // --- DECKBUILDER COMPLETO CON REGOLE COMPANION ---
+    const buildCardKey = (c) => c.name + (c.isCustom ? c.proxyImage : "") + c.id + !!c.isSideboard + !!c.isCommander + !!c.isCompanion;
+
     const DeckBuilder = ({navigate, activeDeck}) => {
       const [deckName, setDeckName] = useState(activeDeck ? activeDeck.name : "");
       const [deckFormat, setDeckFormat] = useState(activeDeck ? (activeDeck.format || 'commander') : 'commander');
-      const [deck, setDeck] = useState(activeDeck ? activeDeck.cards : []);
+      const [deck, setDeck] = useState(activeDeck ? activeDeck.cards.map(c => ({...c, oracle_text: c.oracle_text || "", mana_cost: c.mana_cost || "", isCompanion: c.isCompanion || false})) : []);
       const [rulebreaker, setRulebreaker] = useState(activeDeck ? (activeDeck.rulebreaker || false) : false);
       const [addToSideboard, setAddToSideboard] = useState(false);
       
@@ -843,10 +848,9 @@
 
       const changeArtOfExistingCard = (newImg, newImgBack) => {
          if (!managingCard) return;
-         const cardKey = managingCard.name + (managingCard.isCustom ? managingCard.proxyImage : "") + managingCard.id + !!managingCard.isSideboard;
+         const cardKey = buildCardKey(managingCard);
          setDeck(deck.map(c => {
-             const k = c.name + (c.isCustom ? c.proxyImage : "") + c.id + !!c.isSideboard;
-             if (k === cardKey) {
+             if (buildCardKey(c) === cardKey) {
                  return { ...c, image: newImg, imageBack: newImgBack };
              }
              return c;
@@ -890,12 +894,31 @@
                 if (data.data && Array.isArray(data.data)) {
                    const cards = data.data.filter(c => c.image_uris || (c.card_faces && c.card_faces.length > 0 && c.card_faces[0].image_uris)).map(c => {
                      let img = ""; let imgBack = null;
+                     let oracle_text = c.oracle_text || "";
+                     let mana_cost = c.mana_cost || "";
+
                      if (c.image_uris && c.image_uris.normal) { img = c.image_uris.normal; } 
                      else if (c.card_faces && c.card_faces.length > 0) {
                          if (c.card_faces[0].image_uris && c.card_faces[0].image_uris.normal) img = c.card_faces[0].image_uris.normal;
                          if (c.card_faces.length > 1 && c.card_faces[1].image_uris && c.card_faces[1].image_uris.normal) imgBack = c.card_faces[1].image_uris.normal;
+                         if (!oracle_text) oracle_text = c.card_faces.map(f=>f.oracle_text).join(' ');
+                         if (!mana_cost) mana_cost = c.card_faces[0].mana_cost;
                      }
-                     return { id: c.id || Math.random().toString(), name: c.name || "Sconosciuta", image: img, imageBack: imgBack, type: c.type_line || "", cmc: c.cmc || 0, colors: c.color_identity || [], legalities: c.legalities || {}, printsUrl: c.prints_search_uri || null, isCommander: false };
+                     return { 
+                         id: c.id || Math.random().toString(), 
+                         name: c.name || "Sconosciuta", 
+                         image: img, 
+                         imageBack: imgBack, 
+                         type: c.type_line || "", 
+                         cmc: c.cmc || 0, 
+                         colors: c.color_identity || [], 
+                         legalities: c.legalities || {}, 
+                         printsUrl: c.prints_search_uri || null, 
+                         isCommander: false,
+                         isCompanion: false,
+                         oracle_text: oracle_text,
+                         mana_cost: mana_cost
+                     };
                    });
                    if(isNewSearch) { setAllResults(cards); setLocalPage(0); } else { setAllResults(prev => [...prev, ...cards]); }
                    setNextScryfallUrl(data.has_more ? data.next_page : null);
@@ -931,7 +954,7 @@
       const loadMyProxies = () => {
         const proxies = JSON.parse(localStorage.getItem('mtg_proxies') || '[]');
         if (proxies.length === 0) return alert("Non hai ancora creato nessuna Proxy! Vai in Proxy Lair.");
-        setAllResults(proxies);
+        setAllResults(proxies.map(p => ({...p, oracle_text: "", mana_cost: "", isCompanion: false})));
         setLocalPage(0);
         setNextScryfallUrl(null);
       };
@@ -949,7 +972,7 @@
       const addToDeckMulti = () => {
         let newCards = [];
         for(let i=0; i<addQty; i++) {
-           newCards.push({...selectedCard, deckId: 'card-' + Date.now() + '-' + i + '-' + Math.random(), isCommander: false, isSideboard: addToSideboard});
+           newCards.push({...selectedCard, deckId: 'card-' + Date.now() + '-' + i + '-' + Math.random(), isCommander: false, isSideboard: addToSideboard, isCompanion: false});
         }
         setDeck([...deck, ...newCards]);
         closeSubView(setSelectedCard);
@@ -984,12 +1007,17 @@
                let arr = [];
                for(let j=0; j<qty; j++) {
                  let img = ""; let imgBack = null;
+                 let oracle_text = c.oracle_text || "";
+                 let mana_cost = c.mana_cost || "";
+
                  if (c.image_uris && c.image_uris.normal) { img = c.image_uris.normal; } 
                  else if (c.card_faces && c.card_faces.length > 0) {
                      if (c.card_faces[0].image_uris && c.card_faces[0].image_uris.normal) img = c.card_faces[0].image_uris.normal;
                      if (c.card_faces.length > 1 && c.card_faces[1].image_uris && c.card_faces[1].image_uris.normal) imgBack = c.card_faces[1].image_uris.normal;
+                     if (!oracle_text) oracle_text = c.card_faces.map(f=>f.oracle_text).join(' ');
+                     if (!mana_cost) mana_cost = c.card_faces[0].mana_cost;
                  }
-                 arr.push({ id: c.id || Math.random().toString(), deckId: 'import-' + Date.now() + '-' + Math.random() + '-' + j, name: c.name || "Sconosciuta", image: img, imageBack: imgBack, type: c.type_line || "", cmc: c.cmc || 0, colors: c.color_identity || [], legalities: c.legalities || {}, printsUrl: c.prints_search_uri || null, isCommander: false, isSideboard: addToSideboard });
+                 arr.push({ id: c.id || Math.random().toString(), deckId: 'import-' + Date.now() + '-' + Math.random() + '-' + j, name: c.name || "Sconosciuta", image: img, imageBack: imgBack, type: c.type_line || "", cmc: c.cmc || 0, colors: c.color_identity || [], legalities: c.legalities || {}, printsUrl: c.prints_search_uri || null, isCommander: false, isSideboard: addToSideboard, isCompanion: false, oracle_text: oracle_text, mana_cost: mana_cost });
                }
                return arr;
             }).catch(e => { return []; });
@@ -1011,19 +1039,23 @@
 
       const deckMap = {};
       deck.forEach(c => {
-         const key = c.name + (c.isCustom ? c.proxyImage : "") + c.id + !!c.isSideboard; 
-         if(!deckMap[key]) { deckMap[key] = { ...c, count: 1, isCmdrFlag: c.isCommander }; } 
-         else { deckMap[key].count++; if(c.isCommander) deckMap[key].isCmdrFlag = true; }
+         const key = buildCardKey(c);
+         if(!deckMap[key]) { deckMap[key] = { ...c, count: 1, isCmdrFlag: c.isCommander, isCompFlag: c.isCompanion }; } 
+         else { 
+            deckMap[key].count++; 
+            if(c.isCommander) deckMap[key].isCmdrFlag = true; 
+            if(c.isCompanion) deckMap[key].isCompFlag = true; 
+         }
       });
-      const groupedByCategory = { "Comandante": [], "Creature": [], "Planeswalker": [], "Istantanei": [], "Stregonerie": [], "Artefatti": [], "Incantesimi": [], "Terre": [], "Altro": [], "Sideboard": [] };
+      const groupedByCategory = { "Comandante": [], "Companion": [], "Creature": [], "Planeswalker": [], "Istantanei": [], "Stregonerie": [], "Artefatti": [], "Incantesimi": [], "Terre": [], "Altro": [], "Sideboard": [] };
       Object.values(deckMap).forEach(c => { groupedByCategory[getCardCategory(c)].push(c); });
       Object.keys(groupedByCategory).forEach(k => { groupedByCategory[k].sort((a,b) => a.name.localeCompare(b.name)); });
 
       const applyManageQty = () => {
-         const cardKey = managingCard.name + (managingCard.isCustom ? managingCard.proxyImage : "") + managingCard.id + !!managingCard.isSideboard;
-         let newDeck = deck.filter(c => (c.name + (c.isCustom ? c.proxyImage : "") + c.id + !!c.isSideboard) !== cardKey);
+         const cardKey = buildCardKey(managingCard);
+         let newDeck = deck.filter(c => buildCardKey(c) !== cardKey);
          for(let i=0; i<manageQty; i++) {
-            newDeck.push({...managingCard, deckId: 'card-' + Date.now() + '-' + i + '-' + Math.random(), isCommander: managingCard.isCommander || managingCard.isCmdrFlag || false});
+            newDeck.push({...managingCard, deckId: 'card-' + Date.now() + '-' + i + '-' + Math.random(), isCommander: managingCard.isCommander || managingCard.isCmdrFlag || false, isCompanion: managingCard.isCompanion || managingCard.isCompFlag || false});
          }
          setDeck(newDeck);
          closeSubView(setManagingCard);
@@ -1031,31 +1063,94 @@
 
       const toggleGroupCommander = (cardKey) => {
          setDeck(deck.map(c => {
-            const k = c.name + (c.isCustom ? c.proxyImage : "") + c.id + !!c.isSideboard;
-            if (k === cardKey) return {...c, isCommander: !c.isCommander};
+            if (buildCardKey(c) === cardKey) return {...c, isCommander: !c.isCommander};
+            return c;
+         }));
+      };
+
+      const toggleGroupCompanion = (cardKey) => {
+         setDeck(deck.map(c => {
+            if (buildCardKey(c) === cardKey) return {...c, isCompanion: !c.isCompanion};
             return c;
          }));
       };
 
       let warnings = [];
-      const commanders = deck.filter(c => c.isCommander && !c.isSideboard);
-      const mainDeckCards = deck.filter(c => !c.isSideboard);
-      const sideCards = deck.filter(c => c.isSideboard);
+      const commanders = deck.filter(c => c.isCommander && !c.isSideboard && !c.isCompanion);
+      const companions = deck.filter(c => c.isCompanion);
+      const mainDeckCards = deck.filter(c => !c.isSideboard && !c.isCompanion);
+      const sideCards = deck.filter(c => c.isSideboard || c.isCompanion);
       
       const cmdColors = new Set();
       commanders.forEach(c => { if (c.colors) c.colors.forEach(col => cmdColors.add(col)); });
 
       if (!rulebreaker) {
+         // REGOLE COMMANDER BASE
          if (deckFormat === 'commander') {
              if (mainDeckCards.length !== 100) warnings.push(`Commander: il mazzo deve avere 100 carte esatte (ora ${mainDeckCards.length}).`);
-             if (sideCards.length > 0) warnings.push(`Commander non prevede una Sideboard ufficiale.`);
+             if (sideCards.filter(c=>!c.isCompanion).length > 0) warnings.push(`Commander non prevede una Sideboard (eccetto il Companion).`);
              if (commanders.length === 0) warnings.push("Commander: Manca il Comandante.");
+             else if (commanders.length > 2) warnings.push("Commander: Non puoi avere più di 2 Comandanti.");
+             else if (commanders.length === 2) {
+                 const partnerRegex = /partner|friends forever|choose a background|doctor's companion/i;
+                 const bothHavePartner = commanders.every(c => c.oracle_text && partnerRegex.test(c.oracle_text));
+                 if (!bothHavePartner) warnings.push("Commander: Hai 2 Comandanti, ma non hanno abilità legali per esserlo assieme (Partner, Background, ecc.).");
+             }
              if (commanders.length > 0 && commanders.some(c => c.type && !c.type.toLowerCase().includes("legendary") && !c.type.toLowerCase().includes("planeswalker"))) {
                 warnings.push("Il Comandante dev'essere una Creatura Leggendaria o Planeswalker valido.");
              }
          } else {
-             if (mainDeckCards.length < 60) warnings.push(`${deckFormat.toUpperCase()}: minimo 60 carte maindeck (ora ${mainDeckCards.length}).`);
-             if (sideCards.length > 15) warnings.push(`La Sideboard può avere massimo 15 carte (ora ${sideCards.length}).`);
+             if (mainDeckCards.length < 60) warnings.push(`${deckFormat.toUpperCase()}: minimo 60 carte (ora ${mainDeckCards.length}).`);
+             if (sideCards.length > 15) warnings.push(`La Sideboard può avere massimo 15 carte (incluso Companion). (Ora ${sideCards.length}).`);
+         }
+
+         // REGOLE COMPANION
+         if (companions.length > 1) warnings.push("Puoi avere al massimo 1 Companion in totale.");
+         if (companions.length === 1) {
+             const comp = companions[0];
+             const compName = comp.name.toLowerCase();
+             const deckToCheck = deck.filter(c => !c.isSideboard && !c.isCompanion); // Check main deck
+             
+             if (deckFormat === 'commander' && commanders.length > 0) {
+                 let compInvalidColor = false;
+                 if (comp.colors) { comp.colors.forEach(col => { if (!cmdColors.has(col)) compInvalidColor = true; }); }
+                 if (compInvalidColor) warnings.push(`Il Companion "${comp.name}" non rispetta l'identità di colore del Comandante.`);
+             }
+
+             if (compName.includes("kaheera")) {
+                 const invalid = deckToCheck.some(c => c.type && c.type.toLowerCase().includes("creature") && !/cat|elemental|nightmare|dinosaur|beast/i.test(c.type.toLowerCase()));
+                 if (invalid) warnings.push("Kaheera: Tutte le creature del mazzo devono essere Gatti, Elementali, Incubi, Dinosauri o Bestie.");
+             }
+             if (compName.includes("gyruda")) {
+                 const invalid = deckToCheck.some(c => (c.cmc || 0) % 2 !== 0);
+                 if (invalid) warnings.push("Gyruda: Tutte le carte del mazzo devono avere Costo di Mana Pari.");
+             }
+             if (compName.includes("obosh")) {
+                 const invalid = deckToCheck.some(c => (c.cmc || 0) > 0 && (c.cmc || 0) % 2 === 0 && !c.type.toLowerCase().includes("land"));
+                 if (invalid) warnings.push("Obosh: Tutte le carte non-terra del mazzo devono avere Costo di Mana Dispari.");
+             }
+             if (compName.includes("lurrus")) {
+                 const invalid = deckToCheck.some(c => (c.cmc || 0) > 2 && !c.type.toLowerCase().includes("instant") && !c.type.toLowerCase().includes("sorcery") && !c.type.toLowerCase().includes("land"));
+                 if (invalid) warnings.push("Lurrus: Tutti i permanenti devono avere Costo di Mana 2 o inferiore.");
+             }
+             if (compName.includes("keruga")) {
+                 const invalid = deckToCheck.some(c => (c.cmc || 0) < 3 && !c.type.toLowerCase().includes("land"));
+                 if (invalid) warnings.push("Keruga: Tutte le carte non-terra devono avere Costo di Mana 3 o superiore.");
+             }
+             if (compName.includes("jegantha")) {
+                 const invalid = deckToCheck.some(c => {
+                    if (!c.mana_cost) return false;
+                    const matches = c.mana_cost.match(/\{[WUBRG]\}/g) || [];
+                    const counts = {};
+                    matches.forEach(m => counts[m] = (counts[m] || 0) + 1);
+                    return Object.values(counts).some(v => v > 1);
+                 });
+                 if (invalid) warnings.push("Jegantha: Nessuna carta può avere simboli di mana doppi nel costo.");
+             }
+             if (compName.includes("yorion")) {
+                 if (deckFormat === 'commander') warnings.push("Yorion non è un Companion legale in Commander (richiede 120 carte totali).");
+                 else if (mainDeckCards.length < 80) warnings.push("Yorion: Il mazzo principale deve avere almeno 80 carte.");
+             }
          }
 
          let hasIllegalColor = false;
@@ -1076,7 +1171,7 @@
             nameCounts[c.name] = (nameCounts[c.name] || 0) + 1;
             
             if (!canBypassCount) {
-               if (deckFormat === 'commander' && nameCounts[c.name] > 1) {
+               if (deckFormat === 'commander' && nameCounts[c.name] > 1 && !c.isCompanion) {
                   if(!warnings.includes(`Singleton violata: troppe copie di "${c.name}".`)) warnings.push(`Singleton violata: troppe copie di "${c.name}".`);
                }
                if (deckFormat !== 'commander' && nameCounts[c.name] > 4) {
@@ -1087,8 +1182,8 @@
          if (hasIllegalColor) warnings.push("Hai inserito carte fuori dall'Identità di Colore del Comandante.");
       }
 
-      const totalCMC = deck.reduce((acc, c) => acc + (c.cmc || 0), 0);
-      const avgCMC = deck.length > 0 ? (totalCMC / deck.length).toFixed(2) : 0;
+      const totalCMC = deck.filter(c => !c.isSideboard && !c.isCompanion).reduce((acc, c) => acc + (c.cmc || 0), 0);
+      const avgCMC = mainDeckCards.length > 0 ? (totalCMC / mainDeckCards.length).toFixed(2) : 0;
 
       const isSubViewActive = selectedCard || managingCard || editingProxyCard;
 
@@ -1118,7 +1213,7 @@
                  
                  <div className="w-full max-w-sm mb-4 flex gap-2">
                     <button onClick={() => translateCard(targetCard)} disabled={translating} className="flex-1 bg-indigo-700 hover:bg-indigo-600 text-white font-bold py-3 rounded-xl shadow-[0_0_15px_rgba(67,56,202,0.4)] border border-indigo-500 transition-all text-xs">
-                      {translating ? "Traduco..." : (showIta ? "🇬🇧 Torna in Inglese" : "🇮🇹 Vedi in Italiano")}
+                      {translating ? "Traduco..." : (showIta ? "🇬🇧 Torna in Inglese" : "🇮🇹 Tenta Traduzione")}
                     </button>
                     {!targetCard.isCustom && targetCard.printsUrl && (
                         <button onClick={() => fetchOtherPrints(targetCard)} disabled={loadingPrints} className="flex-1 bg-orange-600 hover:bg-orange-500 text-white font-bold py-3 rounded-xl shadow-lg border border-orange-500 transition-all text-xs">
@@ -1340,7 +1435,7 @@
                 </div>
               )}
 
-              {/* LISTA MAZZO INTERATTIVA CON CMD E PROXY BUTTONS */}
+              {/* LISTA MAZZO INTERATTIVA CON CMD, COMP E PROXY BUTTONS */}
               {Object.keys(groupedByCategory).some(cat => groupedByCategory[cat].length > 0) && (
                 <div className="bg-gray-800/90 p-3 rounded-xl border border-gray-600 shadow-md backdrop-blur-sm animate-fade">
                   <h3 className="font-bold text-white mb-3 pl-2">La tua Lista:</h3>
@@ -1350,11 +1445,11 @@
                        if(cardsInCat.length === 0) return null;
                        return (
                           <div key={cat} className="space-y-2">
-                             <h4 className={`text-xs font-black border-b pb-1 uppercase ${cat === 'Sideboard' ? 'text-indigo-400 border-indigo-700' : 'text-gray-400 border-gray-700'}`}>
+                             <h4 className={`text-xs font-black border-b pb-1 uppercase ${cat === 'Sideboard' ? 'text-indigo-400 border-indigo-700' : (cat === 'Companion' ? 'text-pink-400 border-pink-700' : 'text-gray-400 border-gray-700')}`}>
                                 {cat} ({cardsInCat.reduce((acc,c)=>acc+c.count,0)})
                              </h4>
                              {cardsInCat.map((card, index) => (
-                               <div key={index} className={`flex gap-2 bg-gray-900 p-2 rounded-lg border ${card.isCmdrFlag ? 'border-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.3)]' : (card.isSideboard ? 'border-indigo-500' : 'border-gray-700')}`}>
+                               <div key={index} className={`flex gap-2 bg-gray-900 p-2 rounded-lg border ${card.isCmdrFlag ? 'border-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.3)]' : (card.isCompFlag ? 'border-pink-500 shadow-[0_0_10px_rgba(236,72,153,0.3)]' : (card.isSideboard ? 'border-indigo-500' : 'border-gray-700'))}`}>
                                  <div className="relative cursor-pointer shrink-0" onClick={() => openSubView(setManagingCard, card, setManageQty, card.count)}>
                                      <img src={card.proxyImage || card.image || "mtg-bg.jpg"} alt={card.name} className="w-14 rounded object-cover shadow border border-gray-600" />
                                      <div className="absolute -top-2 -right-2 bg-blue-600 text-white font-black text-xs w-6 h-6 flex items-center justify-center rounded-full shadow border border-blue-400">
@@ -1366,14 +1461,21 @@
                                    <h4 className="font-bold text-gray-200 text-xs leading-tight truncate pr-1 cursor-pointer" onClick={() => openSubView(setManagingCard, card, setManageQty, card.count)}>{card.name}</h4>
                                    
                                    <div className="flex items-center justify-between mt-1">
-                                     {deckFormat === 'commander' && !card.isSideboard && (
-                                       <label className="flex items-center gap-1 text-yellow-500 text-[10px] font-bold cursor-pointer">
-                                         <input type="checkbox" checked={card.isCmdrFlag} onChange={() => toggleGroupCommander(card.name + (card.isCustom ? card.proxyImage : "") + card.id + !!card.isSideboard)} className="accent-yellow-500" /> Cmdr
-                                       </label>
-                                     )}
+                                     <div className="flex items-center gap-2">
+                                       {deckFormat === 'commander' && !card.isSideboard && !card.isCompFlag && (
+                                         <label className="flex items-center gap-1 text-yellow-500 text-[10px] font-bold cursor-pointer">
+                                           <input type="checkbox" checked={card.isCmdrFlag} onChange={() => toggleGroupCommander(buildCardKey(card))} className="accent-yellow-500" /> Cmdr
+                                         </label>
+                                       )}
+                                       {!card.isCmdrFlag && (
+                                         <label className="flex items-center gap-1 text-pink-500 text-[10px] font-bold cursor-pointer">
+                                           <input type="checkbox" checked={card.isCompFlag} onChange={() => toggleGroupCompanion(buildCardKey(card))} className="accent-pink-500" /> Comp
+                                         </label>
+                                       )}
+                                     </div>
                                      
                                      <div className="flex gap-1 ml-auto">
-                                       <button onClick={() => openSubView(setEditingProxyCard, deck.find(c => (c.name + (c.isCustom ? c.proxyImage : "") + c.id + !!c.isSideboard) === (card.name + (card.isCustom ? card.proxyImage : "") + card.id + !!card.isSideboard)))} className="text-[10px] bg-purple-700 hover:bg-purple-600 text-white font-bold px-2 py-1 rounded shadow transition-colors">🎨 Proxy</button>
+                                       <button onClick={() => openSubView(setEditingProxyCard, deck.find(c => buildCardKey(c) === buildCardKey(card)))} className="text-[10px] bg-purple-700 hover:bg-purple-600 text-white font-bold px-2 py-1 rounded shadow transition-colors">🎨 Proxy</button>
                                      </div>
                                    </div>
                                  </div>
@@ -1408,11 +1510,11 @@
 
       const deckMap = {};
       deck.cards.forEach(c => {
-         const key = c.name + (c.isCustom ? c.proxyImage : "") + c.id + !!c.isSideboard; 
+         const key = c.name + (c.isCustom ? c.proxyImage : "") + c.id + !!c.isSideboard + !!c.isCompanion; 
          if(!deckMap[key]) { deckMap[key] = { ...c, count: 1 }; } 
          else { deckMap[key].count++; }
       });
-      const groupedByCategory = { "Comandante": [], "Creature": [], "Planeswalker": [], "Istantanei": [], "Stregonerie": [], "Artefatti": [], "Incantesimi": [], "Terre": [], "Altro": [], "Sideboard": [] };
+      const groupedByCategory = { "Comandante": [], "Companion": [], "Creature": [], "Planeswalker": [], "Istantanei": [], "Stregonerie": [], "Artefatti": [], "Incantesimi": [], "Terre": [], "Altro": [], "Sideboard": [] };
       Object.values(deckMap).forEach(c => { groupedByCategory[getCardCategory(c)].push(c); });
       Object.keys(groupedByCategory).forEach(k => { groupedByCategory[k].sort((a,b) => a.name.localeCompare(b.name)); });
 
@@ -1498,7 +1600,7 @@
 
                  <div className="w-full max-w-sm mb-4 flex gap-2">
                     <button onClick={() => translateCard(viewingCard)} disabled={translating} className="flex-1 bg-indigo-700 hover:bg-indigo-600 text-white font-bold py-3 rounded-xl shadow-[0_0_15px_rgba(67,56,202,0.4)] border border-indigo-500 transition-all text-xs">
-                      {translating ? "Traduco..." : (showIta ? "🇬🇧 Torna in Inglese" : "🇮🇹 Vedi in Italiano")}
+                      {translating ? "Traduco..." : (showIta ? "🇬🇧 Torna in Inglese" : "🇮🇹 Tenta Traduzione")}
                     </button>
                     {!viewingCard.isCustom && viewingCard.printsUrl && (
                         <button onClick={() => fetchOtherPrints(viewingCard)} disabled={loadingPrints} className="flex-1 bg-orange-600 hover:bg-orange-500 text-white font-bold py-3 rounded-xl shadow-lg border border-orange-500 transition-all text-xs">
@@ -1533,11 +1635,11 @@
                      if(cardsInCat.length === 0) return null;
                      return (
                         <div key={cat} className="space-y-2">
-                           <h4 className={`text-xs font-black border-b pb-1 uppercase ${cat === 'Sideboard' ? 'text-indigo-400 border-indigo-700' : 'text-gray-400 border-gray-700'}`}>
+                           <h4 className={`text-xs font-black border-b pb-1 uppercase ${cat === 'Sideboard' ? 'text-indigo-400 border-indigo-700' : (cat === 'Companion' ? 'text-pink-400 border-pink-700' : 'text-gray-400 border-gray-700')}`}>
                               {cat} ({cardsInCat.reduce((acc,c)=>acc+c.count,0)})
                            </h4>
                            {cardsInCat.map((card, index) => (
-                             <div key={index} className={`flex gap-2 bg-gray-900 p-2 rounded-lg border ${card.isCmdrFlag ? 'border-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.3)]' : (card.isSideboard ? 'border-indigo-500' : 'border-gray-700')} cursor-pointer hover:bg-gray-800 transition-colors`} onClick={() => openViewer(card)}>
+                             <div key={index} className={`flex gap-2 bg-gray-900 p-2 rounded-lg border ${card.isCmdrFlag ? 'border-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.3)]' : (card.isCompFlag ? 'border-pink-500 shadow-[0_0_10px_rgba(236,72,153,0.3)]' : (card.isSideboard ? 'border-indigo-500' : 'border-gray-700'))} cursor-pointer hover:bg-gray-800 transition-colors`} onClick={() => openViewer(card)}>
                                <div className="relative shrink-0">
                                    <img src={card.proxyImage || card.image || "mtg-bg.jpg"} alt={card.name} className="w-14 rounded object-cover shadow border border-gray-600" />
                                    <div className="absolute -top-2 -right-2 bg-blue-600 text-white font-black text-xs w-6 h-6 flex items-center justify-center rounded-full shadow border border-blue-400">
@@ -1560,7 +1662,7 @@
       );
     };
 
-    // --- I MIEI MAZZI CON FILTRI E GRIGLIA ---
+    // --- ALTRI COMPONENTI BASE (MYDECKS, ANALYSIS, ECC.) ---
     const MyDecks = ({navigate}) => {
       const [decks, setDecks] = useState([]);
       const [filterQuery, setFilterQuery] = useState("");
@@ -1656,16 +1758,16 @@
       const cmds = deck.cards.filter(c => c.isCommander);
       const cmdName = cmds.length > 0 ? cmds[0].name : "Nessun Comandante Selezionato";
       
-      const totalCards = deck.cards.filter(c => !c.isSideboard).length;
-      const lands = deck.cards.filter(c => c.type && c.type.toLowerCase().includes('land') && !c.isSideboard).length;
-      const avgCMC = deck.cards.filter(c => !c.isSideboard).reduce((acc, c) => acc + (c.cmc || 0), 0) / (totalCards || 1);
+      const totalCards = deck.cards.filter(c => !c.isSideboard && !c.isCompanion).length;
+      const lands = deck.cards.filter(c => c.type && c.type.toLowerCase().includes('land') && !c.isSideboard && !c.isCompanion).length;
+      const avgCMC = deck.cards.filter(c => !c.isSideboard && !c.isCompanion).reduce((acc, c) => acc + (c.cmc || 0), 0) / (totalCards || 1);
 
       const curve = {0:0, 1:0, 2:0, 3:0, 4:0, 5:0, '6+':0};
       let maxCurve = 0;
       const colorCounts = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
       
       deck.cards.forEach(c => {
-         if(c.isSideboard) return;
+         if(c.isSideboard || c.isCompanion) return;
          if(c.type && !c.type.toLowerCase().includes('land')) {
             let cmc = c.cmc || 0;
             if (cmc >= 6) curve['6+']++; else curve[cmc]++;
@@ -1868,6 +1970,7 @@ ${listText}`;
       );
     };
 
+    // --- GAME UTILITY (LIFE TRACKER, MANA E SINCRONIZZAZIONE DANNI CMDR) ---
     const GameUtility = ({view, setView}) => {
       const [setup, setSetup] = useState(true);
       const [numPlayers, setNumPlayers] = useState(4);
@@ -1937,7 +2040,7 @@ ${listText}`;
 
       return (
         <div className="fixed inset-0 z-[100] bg-black p-1 flex flex-col h-[100dvh] w-[100dvw]">
-          <button onClick={() => setView('game')} className="absolute top-2 left-2 z-[110] bg-black/80 px-3 py-2 rounded-full text-white text-xs border border-white/20 font-bold shadow-lg">✖ Esci / Setup</button>
+          <button onClick={() => setView('game')} className="absolute top-2 left-2 z-[110] bg-black/80 px-3 py-2 rounded-full text-white text-xs border border-white/20 font-bold shadow-lg">✖ Esci</button>
           <div className={`flex-1 grid ${gridClass} gap-1 h-full w-full pt-12`}>
              {players.map(p => <PlayerCard key={p.id} player={p} updateStat={updateStat} updateMana={updateMana} toggleImmunity={toggleImmunity} opponents={players.filter(op => op.id !== p.id)} updatePlayerConfig={updatePlayerConfig} />)}
           </div>
