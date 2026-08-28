@@ -223,12 +223,13 @@
       </button>
     );
 
-    // --- TAVOLO VIRTUALE (PLAYTESTER) BUG FIXATO ---
+    // --- TAVOLO VIRTUALE (PLAYTESTER SANDBOX COMPLETO) ---
     const PlaytesterSandbox = ({view, setView, navigate}) => {
        const [decks, setDecks] = useState([]);
        const [selectedDeckId, setSelectedDeckId] = useState("");
        const [gameState, setGameState] = useState(null); 
        const [showCardModal, setShowCardModal] = useState(null);
+       const [browsingZone, setBrowsingZone] = useState(null); // 'library' | 'graveyard' | 'exile'
 
        useEffect(() => { setDecks(JSON.parse(localStorage.getItem('mtg_decks') || '[]')); }, []);
 
@@ -321,11 +322,21 @@
 
           setTimeout(() => {
              doDraw(7, allCards, []);
-             if(cardsToBottom > 0) alert(`Mulligan a 7 effettuato. Metti ${cardsToBottom} carte in fondo al mazzo! (Clicca sulla carta in mano -> Fondo Mazzo)`);
+             if(cardsToBottom > 0) alert(`Mulligan a 7 effettuato. Metti ${cardsToBottom} carte in fondo al mazzo! (Tocca la carta in Mano -> Fondo Mazzo)`);
           }, 100);
        };
 
-       // RISOLTO IL BUG DI CIMA MAZZO / FONDO MAZZO
+       const shuffleLibrary = () => {
+          if(!gameState) return;
+          let lib = [...gameState.library];
+          for (let i = lib.length - 1; i > 0; i--) {
+             const j = Math.floor(Math.random() * (i + 1));
+             [lib[i], lib[j]] = [lib[j], lib[i]];
+          }
+          setGameState(prev => ({...prev, library: lib}));
+          alert("Mazzo mischiato!");
+       };
+
        const moveCard = (uid, sourceZone, destZone) => {
           if(!gameState) return;
           let cardToMove = null;
@@ -337,20 +348,25 @@
           if(!cardToMove) return;
           cardToMove.isTapped = false;
 
+          let newGameState = { ...gameState, [sourceZone]: newSource };
+
           if(destZone === 'libraryBottom') {
-             let lib = [...gameState.library];
+             let lib = sourceZone === 'library' ? [...newSource] : [...gameState.library];
              lib.push(cardToMove);
-             setGameState(prev => ({...prev, [sourceZone]: newSource, library: lib}));
+             newGameState.library = lib;
           } else if(destZone === 'libraryTop') {
-             let lib = [...gameState.library];
+             let lib = sourceZone === 'library' ? [...newSource] : [...gameState.library];
              lib.unshift(cardToMove);
-             setGameState(prev => ({...prev, [sourceZone]: newSource, library: lib}));
+             newGameState.library = lib;
           } else {
-             let newDest = [...gameState[destZone]];
+             let newDest = sourceZone === destZone ? [...newSource] : [...gameState[destZone]];
              newDest.push(cardToMove);
-             setGameState(prev => ({...prev, [sourceZone]: newSource, [destZone]: newDest}));
+             newGameState[destZone] = newDest;
           }
+          
+          setGameState(newGameState);
           setShowCardModal(null);
+          setBrowsingZone(null); // Chiudiamo in automatico il browser per farti riprendere a giocare!
        };
 
        const toggleTap = (uid) => {
@@ -387,14 +403,42 @@
        return (
           <div className="fixed inset-0 z-[200] bg-green-900 flex flex-col h-[100dvh] w-full animate-fade">
              
+             {/* BROWSER INTERO PER MAZZO, CIMITERO E ESILIO */}
+             {browsingZone && (
+                <div className="fixed inset-0 bg-gray-900 z-[250] flex flex-col animate-fade pb-10">
+                   <div className="flex justify-between items-center p-4 bg-gray-800 border-b border-gray-700 shadow-md">
+                      <h2 className="text-xl font-bold text-white uppercase">{browsingZone === 'library' ? 'Mazzo' : (browsingZone === 'graveyard' ? 'Cimitero' : 'Esilio')} ({gameState[browsingZone].length})</h2>
+                      <div className="flex gap-2">
+                         {browsingZone === 'library' && (
+                            <button onClick={shuffleLibrary} className="bg-blue-600 px-3 py-1 rounded text-white font-bold text-sm shadow">Mischia</button>
+                         )}
+                         <button onClick={() => setBrowsingZone(null)} className="bg-red-600 px-3 py-1 rounded text-white font-bold shadow">Chiudi</button>
+                      </div>
+                   </div>
+                   <div className="flex-1 overflow-y-auto p-4 grid grid-cols-3 sm:grid-cols-4 gap-3 content-start">
+                      {gameState[browsingZone].map(c => (
+                         <img 
+                            key={c.uid} 
+                            src={c.proxyImage || c.image || "mtg-bg.jpg"} 
+                            onClick={() => setShowCardModal({card: c, zone: browsingZone})} 
+                            className="w-full rounded shadow-lg cursor-pointer border border-gray-600 active:scale-95 transition-transform" 
+                         />
+                      ))}
+                      {gameState[browsingZone].length === 0 && <p className="col-span-3 text-center text-gray-500 font-bold mt-10">Nessuna carta qui.</p>}
+                   </div>
+                </div>
+             )}
+
              {/* MODALE AZIONI CARTA */}
              {showCardModal && (
                 <div className="fixed inset-0 bg-black/90 z-[300] flex flex-col items-center justify-center p-4 animate-fade" onClick={() => setShowCardModal(null)}>
                    <div onClick={e => e.stopPropagation()} className="w-full max-w-sm flex flex-col items-center">
-                      <img src={showCardModal.card.proxyImage || showCardModal.card.image || "mtg-bg.jpg"} className="w-auto h-[45vh] rounded-xl shadow-2xl mb-6" />
+                      <img src={showCardModal.card.proxyImage || showCardModal.card.image || "mtg-bg.jpg"} className="w-auto h-[45vh] rounded-xl shadow-2xl mb-6 border border-gray-600" />
+                      
                       <div className="grid grid-cols-2 gap-2 w-full bg-gray-900 p-4 rounded-xl border border-gray-700">
+                         {/* Azioni Primarie in base alla zona */}
                          {showCardModal.zone === 'hand' && (
-                            <button onClick={() => moveCard(showCardModal.card.uid, 'hand', 'battlefield')} className="col-span-2 bg-blue-600 text-white font-bold py-3 rounded shadow">👇 Gioca sul Campo</button>
+                            <button onClick={() => moveCard(showCardModal.card.uid, 'hand', 'battlefield')} className="col-span-2 bg-green-600 text-white font-bold py-3 rounded shadow">👇 Gioca sul Campo</button>
                          )}
                          {showCardModal.zone === 'commandZone' && (
                             <button onClick={() => moveCard(showCardModal.card.uid, 'commandZone', 'battlefield')} className="col-span-2 bg-yellow-600 text-white font-bold py-3 rounded shadow">👇 Lancia Comandante</button>
@@ -402,15 +446,20 @@
                          {showCardModal.zone === 'battlefield' && (
                             <button onClick={() => moveCard(showCardModal.card.uid, 'battlefield', 'hand')} className="col-span-2 bg-blue-600 text-white font-bold py-3 rounded shadow">👆 Riprendi in Mano</button>
                          )}
+                         {(showCardModal.zone === 'graveyard' || showCardModal.zone === 'exile' || showCardModal.zone === 'library') && (
+                            <React.Fragment>
+                               <button onClick={() => moveCard(showCardModal.card.uid, showCardModal.zone, 'hand')} className="bg-blue-600 text-white font-bold py-3 rounded text-sm shadow">🖐 Metti in Mano</button>
+                               <button onClick={() => moveCard(showCardModal.card.uid, showCardModal.zone, 'battlefield')} className="bg-green-600 text-white font-bold py-3 rounded text-sm shadow">👇 Gioca Campo</button>
+                            </React.Fragment>
+                         )}
                          
-                         <button onClick={() => moveCard(showCardModal.card.uid, showCardModal.zone, 'graveyard')} className="bg-gray-600 text-white font-bold py-2 rounded">💀 Cimitero</button>
-                         <button onClick={() => moveCard(showCardModal.card.uid, showCardModal.zone, 'exile')} className="bg-gray-400 text-black font-bold py-2 rounded">🌌 Esilio</button>
+                         {/* Azioni Secondarie Standard */}
+                         <button onClick={() => moveCard(showCardModal.card.uid, showCardModal.zone, 'graveyard')} className="bg-gray-600 text-white font-bold py-2 rounded text-xs">💀 Cimitero</button>
+                         <button onClick={() => moveCard(showCardModal.card.uid, showCardModal.zone, 'exile')} className="bg-gray-400 text-black font-bold py-2 rounded text-xs">🌌 Esilio</button>
                          <button onClick={() => moveCard(showCardModal.card.uid, showCardModal.zone, 'libraryTop')} className="bg-indigo-700 text-white font-bold py-2 rounded text-xs">Cima Mazzo</button>
                          <button onClick={() => moveCard(showCardModal.card.uid, showCardModal.zone, 'libraryBottom')} className="bg-indigo-900 text-white font-bold py-2 rounded text-xs">Fondo Mazzo</button>
                          
-                         {(showCardModal.zone === 'graveyard' || showCardModal.zone === 'exile') && (
-                            <button onClick={() => moveCard(showCardModal.card.uid, showCardModal.zone, 'hand')} className="col-span-2 bg-blue-600 text-white font-bold py-2 rounded mt-2">Riprendi in Mano</button>
-                         )}
+                         <button onClick={() => setShowCardModal(null)} className="col-span-2 bg-red-600 text-white font-bold py-2 rounded mt-2 shadow">❌ Annulla</button>
                       </div>
                    </div>
                 </div>
@@ -420,8 +469,7 @@
              <div className="bg-black/80 text-white p-2 flex justify-between items-center border-b border-green-700 shadow-md h-[10dvh]">
                 <button onClick={() => setView('playtester')} className="bg-red-600 px-3 py-1 rounded font-bold text-xs shadow">Esci</button>
                 <div className="text-center">
-                   <h3 className="font-black text-sm uppercase">Turno {gameState.turn}</h3>
-                   <span className="text-[10px] text-gray-400">Mazzo: {gameState.library.length}</span>
+                   <h3 className="font-black text-sm uppercase text-yellow-500">Turno {gameState.turn}</h3>
                 </div>
                 <div className="flex gap-1">
                    <button onClick={mulligan} className="bg-orange-600 px-2 py-1 rounded font-bold text-xs shadow">Mulligan</button>
@@ -429,22 +477,30 @@
                 </div>
              </div>
 
-             {/* ZONA COMANDANTE E CIMITERO */}
+             {/* ZONA COMANDANTE E BROWSER A PILE */}
              <div className="bg-black/50 p-2 flex justify-between items-center h-[12dvh] overflow-x-auto gap-2">
-                <div className="flex gap-2 border-r border-green-800 pr-2 h-full">
+                <div className="flex gap-2 border-r border-green-800 pr-2 h-full items-center">
                    {gameState.commandZone.map(c => (
                       <img key={c.uid} src={c.proxyImage || c.image || "mtg-bg.jpg"} onClick={() => setShowCardModal({card: c, zone: 'commandZone'})} className="h-full rounded border border-yellow-500 shadow-lg cursor-pointer" />
                    ))}
                 </div>
-                <div className="flex gap-2 pl-2">
-                   <button onClick={drawOne} className="h-full bg-indigo-900/80 rounded border border-indigo-500 flex items-center justify-center px-4 font-black shadow shadow-indigo-500/50 active:scale-95 transition-transform shrink-0">
+                <div className="flex gap-2 pl-1 overflow-x-auto h-full items-center">
+                   <button onClick={drawOne} className="h-full bg-indigo-900/80 rounded border border-indigo-500 flex items-center justify-center px-3 font-black shadow active:scale-95 transition-transform shrink-0">
                       PESCA
                    </button>
-                   {gameState.graveyard.length > 0 && (
-                      <div className="h-full bg-gray-800 rounded border border-gray-500 flex flex-col items-center justify-center px-3 cursor-pointer shrink-0" onClick={() => setShowCardModal({card: gameState.graveyard[gameState.graveyard.length-1], zone: 'graveyard'})}>
-                         <span className="text-xs font-bold text-gray-400">Cimitero</span>
-                         <span className="font-black text-white">{gameState.graveyard.length}</span>
-                      </div>
+                   <div className="h-full bg-blue-900 rounded border border-blue-500 flex flex-col items-center justify-center px-2 cursor-pointer shrink-0 shadow-lg active:scale-95 transition-transform" onClick={() => setBrowsingZone('library')}>
+                      <span className="text-[10px] font-bold text-blue-300">Mazzo</span>
+                      <span className="font-black text-white">{gameState.library.length}</span>
+                   </div>
+                   <div className="h-full bg-gray-800 rounded border border-gray-500 flex flex-col items-center justify-center px-2 cursor-pointer shrink-0 shadow-lg active:scale-95 transition-transform" onClick={() => setBrowsingZone('graveyard')}>
+                      <span className="text-[10px] font-bold text-gray-400">Cimitero</span>
+                      <span className="font-black text-white">{gameState.graveyard.length}</span>
+                   </div>
+                   {gameState.exile.length > 0 && (
+                     <div className="h-full bg-gray-300 rounded border border-gray-500 flex flex-col items-center justify-center px-2 cursor-pointer shrink-0 shadow-lg active:scale-95 transition-transform" onClick={() => setBrowsingZone('exile')}>
+                        <span className="text-[10px] font-bold text-gray-700">Esilio</span>
+                        <span className="font-black text-black">{gameState.exile.length}</span>
+                     </div>
                    )}
                 </div>
              </div>
@@ -482,6 +538,7 @@
        );
     };
 
+    // --- BACKUP & SYNC ---
     const BackupView = ({navigate}) => {
       const exportData = () => {
          const data = {
@@ -654,14 +711,14 @@
              {customImg && (
                  <div className="bg-gray-900 p-3 rounded-lg border border-gray-700 space-y-3">
                     <div className="space-y-1">
-                      <p className="text-[10px] font-bold text-blue-400 uppercase">Cornice</p>
+                      <p className="text-[10px] font-bold text-blue-400 uppercase">Cornice Riquadro</p>
                       <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-white font-bold">Su</span><input type="range" min="0" max="30" step="0.5" value={maskTop} onChange={e=>setMaskTop(e.target.value)} className="w-full accent-blue-500" /></div>
                       <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-white font-bold">Alt.</span><input type="range" min="20" max="100" step="0.5" value={maskHeight} onChange={e=>setMaskHeight(e.target.value)} className="w-full accent-blue-500" /></div>
                       <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-white font-bold">Sx</span><input type="range" min="0" max="20" step="0.2" value={maskLeft} onChange={e=>setMaskLeft(e.target.value)} className="w-full accent-blue-500" /></div>
                       <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-white font-bold">Largh.</span><input type="range" min="50" max="100" step="0.5" value={maskWidth} onChange={e=>setMaskWidth(e.target.value)} className="w-full accent-blue-500" /></div>
                     </div>
                     <div className="space-y-1 pt-2 border-t border-gray-700">
-                      <p className="text-[10px] font-bold text-purple-400 uppercase">Foto</p>
+                      <p className="text-[10px] font-bold text-purple-400 uppercase">Foto Interna</p>
                       <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-white font-bold">Zoom</span><input type="range" min="1" max="3" step="0.1" value={zoom} onChange={e=>setZoom(e.target.value)} className="w-full accent-purple-500" /></div>
                       <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-white font-bold">Orizz</span><input type="range" min="0" max="100" value={posX} onChange={e=>setPosX(e.target.value)} className="w-full accent-purple-500" /></div>
                       <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-white font-bold">Vert</span><input type="range" min="0" max="100" value={posY} onChange={e=>setPosY(e.target.value)} className="w-full accent-purple-500" /></div>
@@ -708,7 +765,7 @@
       );
     };
 
-    // --- DECKBUILDER COMPLETO ---
+    // --- DECKBUILDER ---
     const DeckBuilder = ({navigate, activeDeck}) => {
       const [deckName, setDeckName] = useState(activeDeck ? activeDeck.name : "");
       const [deckFormat, setDeckFormat] = useState(activeDeck ? (activeDeck.format || 'commander') : 'commander');
@@ -1302,28 +1359,16 @@
                                 {cat} ({cardsInCat.reduce((acc,c)=>acc+c.count,0)})
                              </h4>
                              {cardsInCat.map((card, index) => (
-                               <div key={index} className={`flex gap-2 bg-gray-900 p-2 rounded-lg border ${card.isCmdrFlag ? 'border-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.3)]' : (card.isSideboard ? 'border-indigo-500' : 'border-gray-700')}`}>
-                                 <div className="relative cursor-pointer shrink-0" onClick={() => openSubView(setManagingCard, card, setManageQty, card.count)}>
+                               <div key={index} className={`flex gap-2 bg-gray-900 p-2 rounded-lg border ${card.isCmdrFlag ? 'border-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.3)]' : (card.isSideboard ? 'border-indigo-500' : 'border-gray-700')} cursor-pointer hover:bg-gray-800 transition-colors`} onClick={() => openViewer(card)}>
+                                 <div className="relative shrink-0">
                                      <img src={card.proxyImage || card.image || "mtg-bg.jpg"} alt={card.name} className="w-14 rounded object-cover shadow border border-gray-600" />
                                      <div className="absolute -top-2 -right-2 bg-blue-600 text-white font-black text-xs w-6 h-6 flex items-center justify-center rounded-full shadow border border-blue-400">
                                         {card.count}
                                      </div>
                                  </div>
-                                 
-                                 <div className="flex-1 text-sm flex flex-col justify-between pt-1 overflow-hidden">
-                                   <h4 className="font-bold text-gray-200 text-xs leading-tight truncate pr-1">{card.name}</h4>
-                                   
-                                   <div className="flex items-center justify-between mt-1">
-                                     {deckFormat === 'commander' && (
-                                       <label className="flex items-center gap-1 text-yellow-500 text-[10px] font-bold cursor-pointer">
-                                         <input type="checkbox" checked={card.isCmdrFlag} onChange={() => toggleGroupCommander(card.name + (card.isCustom ? card.proxyImage : "") + card.id + !!card.isSideboard)} className="accent-yellow-500" /> Cmdr
-                                       </label>
-                                     )}
-                                     
-                                     <div className="flex gap-1 ml-auto">
-                                       <button onClick={() => openSubView(setEditingProxyCard, deck.find(c => (c.name + (c.isCustom ? c.proxyImage : "") + c.id + !!c.isSideboard) === (card.name + (card.isCustom ? card.proxyImage : "") + card.id + !!card.isSideboard)))} className="text-[10px] bg-purple-700 hover:bg-purple-600 text-white font-bold px-2 py-1 rounded shadow transition-colors">🎨 Proxy</button>
-                                     </div>
-                                   </div>
+                                 <div className="flex-1 text-sm flex flex-col justify-center overflow-hidden pl-2">
+                                   <h4 className="font-bold text-gray-200 text-sm leading-tight truncate">{card.name}</h4>
+                                   <p className="text-[10px] text-gray-500 truncate">{card.type}</p>
                                  </div>
                                </div>
                              ))}
@@ -1508,7 +1553,6 @@
       );
     };
 
-    // --- I MIEI MAZZI CON FILTRI E GRIGLIA ---
     const MyDecks = ({navigate}) => {
       const [decks, setDecks] = useState([]);
       const [filterQuery, setFilterQuery] = useState("");
@@ -1885,7 +1929,7 @@ ${listText}`;
 
       return (
         <div className="fixed inset-0 z-[100] bg-black p-1 flex flex-col h-[100dvh] w-[100dvw]">
-          <button onClick={() => setView('game')} className="absolute top-2 left-2 z-[110] bg-black/80 px-3 py-2 rounded-full text-white text-xs border border-white/20 font-bold shadow-lg">✖ Esci / Setup</button>
+          <button onClick={() => setView('game')} className="absolute top-2 left-2 z-[110] bg-black/80 px-3 py-2 rounded-full text-white text-xs border border-white/20 font-bold shadow-lg">✖ Esci</button>
           <div className={`flex-1 grid ${gridClass} gap-1 h-full w-full pt-12`}>
              {players.map(p => <PlayerCard key={p.id} player={p} updateStat={updateStat} updateMana={updateMana} toggleImmunity={toggleImmunity} opponents={players.filter(op => op.id !== p.id)} updatePlayerConfig={updatePlayerConfig} />)}
           </div>
