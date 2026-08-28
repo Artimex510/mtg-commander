@@ -1,434 +1,4 @@
-<!DOCTYPE html>
-<html lang="it">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>MTG Commander Companion</title>
-  
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#000000">
-
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
-  <style>
-    body { -webkit-font-smoothing: antialiased; overflow-x: hidden; user-select: none; -webkit-touch-callout: none; background-color: #000; }
-    .animate-fade { animation: fadeIn 0.2s ease-in-out; forwards; }
-    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-    @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
-    button { touch-action: manipulation; }
-    
-    input[type=number]::-webkit-inner-spin-button, 
-    input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-
-    @media print {
-      body { background: white !important; color: black; }
-      .no-print { display: none !important; }
-      .print-grid { display: grid; grid-template-columns: repeat(3, 63mm); gap: 2mm; justify-content: center; }
-      .print-card { width: 63mm; height: 88mm; object-fit: cover; border-radius: 3mm; margin-bottom: 2mm; page-break-inside: avoid; }
-    }
-  </style>
-</head>
-<body>
-  <div id="root"></div>
-
-  <script type="text/babel">
-    const { useState, useEffect, useRef } = React;
-
-    const Icons = {
-      Menu: () => <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16"/></svg>,
-      Home: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 001 1m-6 0h6"/></svg>,
-      Back: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
-    };
-
-    const ManaColors = [
-      { id: 'W', color: 'bg-yellow-100 text-yellow-900', label: 'W' },
-      { id: 'U', color: 'bg-blue-500 text-white', label: 'U' },
-      { id: 'B', color: 'bg-gray-800 text-white', label: 'B' },
-      { id: 'R', color: 'bg-red-500 text-white', label: 'R' },
-      { id: 'G', color: 'bg-green-500 text-white', label: 'G' },
-      { id: 'C', color: 'bg-gray-400 text-gray-900', label: 'C' }
-    ];
-
-    const getCardCategory = (card) => {
-        if (card.isSideboard) return "Sideboard";
-        if (card.isCompanion || card.isCompFlag) return "Companion"; 
-        if (card.isCmdrFlag || card.isCommander) return "Comandante";
-        const t = (card.type || "").toLowerCase();
-        if (t.includes("creature")) return "Creature";
-        if (t.includes("planeswalker")) return "Planeswalker";
-        if (t.includes("instant")) return "Istantanei";
-        if (t.includes("sorcery")) return "Stregonerie";
-        if (t.includes("artifact")) return "Artefatti";
-        if (t.includes("enchantment")) return "Incantesimi";
-        if (t.includes("land")) return "Terre";
-        return "Altro";
-    };
-    const categoriesOrder = ["Comandante", "Companion", "Creature", "Planeswalker", "Istantanei", "Stregonerie", "Artefatti", "Incantesimi", "Terre", "Altro", "Sideboard"];
-
-    const buildCardKey = (c) => c.name + (c.isCustom ? c.proxyImage : "") + c.id + !!c.isSideboard + !!c.isCommander + !!c.isCompanion;
-
-    function App() {
-      const [introState, setIntroState] = useState('initial'); 
-      const videoRef = useRef(null);
-      const [view, setView] = useState('home');
-      const [menuOpen, setMenuOpen] = useState(false);
-      const [activeDeck, setActiveDeck] = useState(null); 
-      
-      useEffect(() => {
-        window.history.pushState(null, null, window.location.href);
-        const handlePopState = (e) => {
-            const leave = window.confirm("Vuoi uscire dall'app? Le modifiche non salvate andranno perse.");
-            if (!leave) { window.history.pushState(null, null, window.location.href); }
-        };
-        const handleBeforeUnload = (e) => { e.returnValue = "Vuoi uscire dall'app?"; };
-        
-        window.addEventListener("popstate", handlePopState);
-        window.addEventListener("beforeunload", handleBeforeUnload);
-        
-        return () => {
-           window.removeEventListener("popstate", handlePopState);
-           window.removeEventListener("beforeunload", handleBeforeUnload);
-        };
-      }, []);
-
-      const navigate = (newView, deck = null) => { setActiveDeck(deck); setView(newView); setMenuOpen(false); };
-
-      const handlePlayIntro = () => {
-         if(videoRef.current) {
-             const playPromise = videoRef.current.play();
-             if (playPromise !== undefined) {
-                 playPromise.then(() => { setIntroState('playing'); })
-                 .catch(e => { console.error("Errore video:", e); setIntroState('finished'); });
-             }
-         } else { setIntroState('finished'); }
-      };
-
-      const finishIntro = () => {
-         if(videoRef.current) videoRef.current.pause();
-         setIntroState('finished');
-      };
-
-      return (
-        <div className="min-h-screen flex flex-col text-gray-100 bg-cover bg-center bg-fixed" style={{ backgroundImage: "url('mtg-bg.jpg')" }}>
-          
-          {introState !== 'finished' && (
-             <div className="fixed inset-0 z-[200] bg-black flex flex-col items-center justify-center overflow-hidden">
-                <video ref={videoRef} playsInline onEnded={finishIntro} onError={finishIntro} className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${introState === 'playing' ? 'opacity-100 z-10' : 'opacity-0 z-[-1]'}`}>
-                   <source src="intro.mp4" type="video/mp4" />
-                </video>
-
-                {introState === 'initial' && (
-                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 animate-fade z-20">
-                      <img src="mtg-bg.jpg" className="absolute inset-0 w-full h-full object-cover opacity-30 pointer-events-none" />
-                      <h2 className="relative z-10 text-4xl font-black text-white drop-shadow-[0_5px_5px_rgba(0,0,0,1)] tracking-widest mb-10">MTG <span className="text-red-500">FOR FUN</span></h2>
-                      <button onClick={handlePlayIntro} className="relative z-10 bg-red-600 hover:bg-red-500 text-white font-black text-3xl py-5 px-12 rounded-full shadow-[0_0_40px_rgba(220,38,38,0.8)] animate-pulse border-2 border-red-400 transition-all active:scale-95">▶ START</button>
-                      <button onClick={finishIntro} className="relative z-10 mt-8 text-gray-400 font-bold underline px-6 py-2">Skip Intro</button>
-                   </div>
-                )}
-                
-                {introState === 'playing' && (
-                   <button onClick={finishIntro} className="absolute top-8 right-6 z-[210] bg-black/60 text-white px-4 py-2 rounded-full font-bold border border-white/30 shadow-lg backdrop-blur-sm active:scale-95 animate-fade">Skip ⏭</button>
-                )}
-             </div>
-          )}
-
-          {introState === 'finished' && (
-            <div className="min-h-screen bg-gray-900/85 backdrop-blur-sm flex flex-col animate-fade">
-              
-              {(view !== 'game_active' && view !== 'playtester_active') && (
-                <header className="bg-gray-900/95 border-b border-gray-700 p-4 flex justify-between items-center fixed top-0 w-full z-50 shadow-md no-print">
-                  <button onClick={() => setMenuOpen(true)} className="text-gray-300 hover:text-white"><Icons.Menu /></button>
-                  <h1 className="text-lg font-bold tracking-widest text-white">MTG <span className="text-red-500">FOR FUN</span></h1>
-                  <button onClick={() => navigate('home')} className="text-gray-300 hover:text-white"><Icons.Home /></button>
-                </header>
-              )}
-
-              {menuOpen && (
-                <div className="fixed inset-0 bg-black/80 z-50 no-print animate-fade" onClick={() => setMenuOpen(false)}>
-                  <div className="w-64 bg-gray-900 h-full p-6 shadow-2xl border-r border-gray-700 overflow-y-auto" onClick={e => e.stopPropagation()}>
-                    <h2 className="text-2xl font-bold mb-6 border-b border-gray-700 pb-2">Menu</h2>
-                    <nav className="space-y-4">
-                      <MenuBtn icon={<Icons.Home/>} text="Home" onClick={() => navigate('home')} />
-                      <MenuBtn icon="🎴" text="Deckbuilding" onClick={() => navigate('deckbuilder')} />
-                      <MenuBtn icon="📚" text="I Miei Mazzi" onClick={() => navigate('mydecks')} />
-                      <MenuBtn icon="🃏" text="Testa Mazzo" onClick={() => navigate('playtester')} />
-                      <MenuBtn icon="✨" text="Proxy Creator" onClick={() => navigate('proxycreator')} />
-                      <MenuBtn icon="⚔️" text="Life Tracker" onClick={() => navigate('game')} />
-                      <MenuBtn icon="🎲" text="Lancia Dado" onClick={() => navigate('dice')} />
-                      <MenuBtn icon="⚖️" text="Regole & Judge" onClick={() => navigate('rules')} />
-                      
-                      <div className="pt-4 mt-4 border-t border-gray-700">
-                         <MenuBtn icon="💾" text="Backup & Sync" onClick={() => navigate('backup')} />
-                      </div>
-
-                      <div className="pt-2 mt-2 border-t border-gray-700">
-                         <p className="text-xs text-gray-500 font-bold mb-3 uppercase tracking-wider">🌐 Import / Siti Esterni</p>
-                         <MenuBtn icon="M" text="Moxfield" onClick={() => window.open('https://www.moxfield.com', '_blank')} />
-                         <MenuBtn icon="D" text="Deckstats" onClick={() => window.open('https://deckstats.net', '_blank')} />
-                         <MenuBtn icon="E" text="EDHREC" onClick={() => window.open('https://edhrec.com', '_blank')} />
-                      </div>
-                    </nav>
-                  </div>
-                </div>
-              )}
-
-              <main className={`${(view !== 'game_active' && view !== 'playtester_active') ? 'pt-20 px-2 pb-10' : ''} flex-1 relative z-10`}>
-                {view === 'home' && <HomeView navigate={navigate} />}
-                {view === 'deckbuilder' && <DeckBuilder navigate={navigate} activeDeck={activeDeck} />}
-                {view === 'mydecks' && <MyDecks navigate={navigate} />}
-                {view === 'viewdeck' && <DeckViewer deck={activeDeck} navigate={navigate} />}
-                {view === 'analysis' && <DeckAnalysis deck={activeDeck} navigate={navigate} />}
-                {view === 'proxycreator' && <ProxyEditor isStandalone={true} />}
-                {view === 'printview' && <PrintView deck={activeDeck} navigate={navigate} />}
-                {view === 'backup' && <BackupView navigate={navigate} />}
-                {(view === 'game' || view === 'game_active') && <GameUtility view={view} setView={setView} />}
-                {(view === 'playtester' || view === 'playtester_active') && <PlaytesterSandbox view={view} setView={setView} navigate={navigate} />}
-                {view === 'dice' && <DiceRoller />}
-                {view === 'rules' && <RulesAI />}
-              </main>
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    const MenuBtn = ({icon, text, onClick}) => (
-      <button onClick={onClick} className="w-full flex items-center space-x-3 text-gray-300 hover:text-white p-2 rounded hover:bg-gray-800 transition-colors">
-        <span className="flex items-center justify-center w-6 h-6">{icon}</span> <span className="font-semibold text-sm">{text}</span>
-      </button>
-    );
-
-    const HomeView = ({navigate}) => (
-      <div className="flex flex-col items-center justify-center pt-8">
-        <div className="mb-12 text-center">
-          <h2 className="text-5xl font-black text-white drop-shadow-[0_5px_5px_rgba(0,0,0,1)] tracking-widest">FOR FUN</h2>
-          <h3 className="text-3xl font-black text-red-500 drop-shadow-md">EDITION</h3>
-          <p className="text-gray-400 mt-2 font-semibold">Your Ultimate Commander Companion</p>
-        </div>
-        <div className="grid grid-cols-2 gap-4 w-full max-w-md">
-          <ActionCard icon="🎴" text="Crea Mazzo" onClick={() => navigate('deckbuilder')} color="bg-blue-900/80 hover:bg-blue-800" />
-          <ActionCard icon="📚" text="I Miei Mazzi" onClick={() => navigate('mydecks')} color="bg-emerald-900/80 hover:bg-emerald-800" />
-          <ActionCard icon="✨" text="Proxy Lair" onClick={() => navigate('proxycreator')} color="bg-purple-900/80 hover:bg-purple-800" />
-          <ActionCard icon="⚔️" text="Life Tracker" onClick={() => navigate('game')} color="bg-red-900/80 hover:bg-red-800" />
-        </div>
-      </div>
-    );
-
-    const ActionCard = ({icon, text, onClick, color}) => (
-      <button onClick={onClick} className={`${color} p-6 rounded-xl flex flex-col items-center justify-center border border-gray-600 shadow-xl active:scale-95 transition-all backdrop-blur-md`}>
-        <div className="text-4xl mb-2 drop-shadow-md">{icon}</div>
-        <span className="font-bold text-sm tracking-wide">{text}</span>
-      </button>
-    );
-
-    const BackupView = ({navigate}) => {
-      const exportData = () => {
-         const data = {
-             decks: JSON.parse(localStorage.getItem('mtg_decks') || '[]'),
-             proxies: JSON.parse(localStorage.getItem('mtg_proxies') || '[]')
-         };
-         const blob = new Blob([JSON.stringify(data)], {type: "application/json"});
-         const url = URL.createObjectURL(blob);
-         const a = document.createElement('a');
-         a.href = url;
-         a.download = `MTG_Companion_Backup_${new Date().toISOString().split('T')[0]}.json`;
-         a.click();
-      };
-
-      const importData = (e) => {
-         const file = e.target.files[0];
-         if(!file) return;
-         const reader = new FileReader();
-         reader.onload = (event) => {
-             try {
-                 const data = JSON.parse(event.target.result);
-                 if(data.decks) localStorage.setItem('mtg_decks', JSON.stringify(data.decks));
-                 if(data.proxies) localStorage.setItem('mtg_proxies', JSON.stringify(data.proxies));
-                 alert("Dati Ripristinati con successo! Ora hai tutti i mazzi.");
-                 navigate('mydecks');
-             } catch(err) {
-                 alert("Errore: Il file di backup sembra corrotto.");
-             }
-         };
-         reader.readAsText(file);
-      };
-
-      return (
-         <div className="max-w-md mx-auto bg-gray-800/90 p-6 rounded-xl shadow-lg border border-gray-600 mt-4 backdrop-blur-sm space-y-6">
-           <h2 className="text-3xl font-black text-center text-blue-400 drop-shadow-md">Backup & Sync</h2>
-           <p className="text-gray-300 text-sm font-semibold text-center leading-snug">Usa questa funzione per passare istantaneamente tutti i tuoi mazzi e le tue proxy dal Telefono al PC, o viceversa.</p>
-           <div className="bg-gray-900 p-4 rounded-xl border border-gray-700 shadow-inner">
-              <h3 className="text-white font-bold mb-2 flex items-center gap-2">1. Esporta Dati</h3>
-              <p className="text-xs text-gray-400 mb-4">Salva l'intero database sul tuo dispositivo. Invia questo file su Google Drive, Telegram o Email.</p>
-              <button onClick={exportData} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl shadow-[0_0_15px_rgba(37,99,235,0.4)] transition-colors">
-                 💾 SCARICA BACKUP (.json)
-              </button>
-           </div>
-           <div className="bg-gray-900 p-4 rounded-xl border border-gray-700 shadow-inner">
-              <h3 className="text-white font-bold mb-2 flex items-center gap-2">2. Importa Dati</h3>
-              <p className="text-xs text-red-400 mb-4 font-bold">⚠️ ATTENZIONE: Caricando un file, sovrascriverai i mazzi attuali su questo dispositivo con quelli del backup.</p>
-              <label className="block w-full bg-green-600 hover:bg-green-500 text-center py-4 rounded-xl cursor-pointer font-black text-white shadow-[0_0_15px_rgba(22,163,74,0.4)] transition-colors">
-                 📂 CARICA BACKUP (.json)
-                 <input type="file" accept=".json" className="hidden" onChange={importData} />
-              </label>
-           </div>
-         </div>
-      );
-    };
-
-    const ProxyEditor = ({card, onClose, onSave, isStandalone}) => {
-      const [baseQuery, setBaseQuery] = useState("");
-      const [baseCard, setBaseCard] = useState(card ? {name: card.name, type: card.type, img: card.image, cmc: card.cmc} : null);
-      const [customName, setCustomName] = useState("");
-      const [customImg, setCustomImg] = useState("");
-      const [zoom, setZoom] = useState(1);
-      const [posX, setPosX] = useState(50); const [posY, setPosY] = useState(50);
-      const [maskTop, setMaskTop] = useState(11.5); const [maskHeight, setMaskHeight] = useState(44); 
-      const [maskLeft, setMaskLeft] = useState(8.2); const [maskWidth, setMaskWidth] = useState(83.6);
-      const [isGenerating, setIsGenerating] = useState(false);
-
-      const searchBase = () => {
-        if(!baseQuery.trim()) return;
-        fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(baseQuery.trim())}`)
-          .then(res => res.json())
-          .then(c => {
-             try {
-                 if(c.id) {
-                   let imgUrl = "";
-                   if (c.image_uris && c.image_uris.normal) imgUrl = c.image_uris.normal;
-                   else if (c.card_faces && c.card_faces.length > 0 && c.card_faces[0].image_uris) imgUrl = c.card_faces[0].image_uris.normal;
-                   setBaseCard({ name: c.name || "Sconosciuta", type: c.type_line || "", img: imgUrl, cmc: c.cmc || 0 });
-                   setCustomName(""); setCustomImg(""); setZoom(1); setPosX(50); setPosY(50);
-                   setMaskTop(11.5); setMaskHeight(44); setMaskLeft(8.2); setMaskWidth(83.6);
-                 } else { alert("Carta non trovata"); }
-             } catch(err) { console.error("Errore", err); }
-          }).catch(e => { console.error("Rete", e); });
-      };
-
-      const handleImage = (e) => {
-        const file = e.target.files[0];
-        if(file) { const r = new FileReader(); r.onload = (ev) => setCustomImg(ev.target.result); r.readAsDataURL(file); }
-      };
-
-      const eseguiSalvataggio = () => {
-        if(!baseCard || !customImg) return alert("Carica un'immagine!");
-        setIsGenerating(true);
-
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        const bImg = new Image();
-        bImg.crossOrigin = "anonymous"; bImg.src = baseCard.img;
-
-        bImg.onload = () => {
-          canvas.width = bImg.width; canvas.height = bImg.height; 
-          ctx.drawImage(bImg, 0, 0, canvas.width, canvas.height);
-          const uImg = new Image(); uImg.src = customImg;
-          uImg.onload = () => {
-             const artX = canvas.width * (maskLeft / 100); const artW = canvas.width * (maskWidth / 100);
-             const artY = canvas.height * (maskTop / 100); const artH = canvas.height * (maskHeight / 100);
-             ctx.save(); ctx.beginPath(); ctx.rect(artX, artY, artW, artH); ctx.clip(); 
-             const boxAspect = artW / artH; const imgAspect = uImg.width / uImg.height;
-             let baseW, baseH;
-             if (imgAspect > boxAspect) { baseH = artH; baseW = uImg.width * (artH / uImg.height); } 
-             else { baseW = artW; baseH = uImg.height * (artW / uImg.width); }
-             const finalW = baseW * zoom; const finalH = baseH * zoom;
-             const offsetX = finalW * ((posX - 50) / 100); const offsetY = finalH * ((posY - 50) / 100);
-             const imgX = artX + (artW / 2) - (finalW / 2) + offsetX; const imgY = artY + (artH / 2) - (finalH / 2) + offsetY;
-             ctx.drawImage(uImg, imgX, imgY, finalW, finalH); ctx.restore();
-
-             if (customName) {
-                const tx = canvas.width * 0.07; const ty = canvas.height * 0.045;
-                const tw = canvas.width * 0.65; const th = canvas.height * 0.055;
-                ctx.fillStyle = "#1a1a1a"; ctx.fillRect(tx, ty, tw, th);
-                ctx.strokeStyle = "#555"; ctx.strokeRect(tx, ty, tw, th);
-                ctx.fillStyle = "white"; ctx.font = `bold ${canvas.height * 0.025}px Georgia, serif`;
-                ctx.fillText(customName, tx + 10, ty + (th/1.8));
-                ctx.fillStyle = "#aaa"; ctx.font = `italic ${canvas.height * 0.015}px Georgia, serif`;
-                ctx.fillText(baseCard.name, tx + 10, ty + (th/1.1));
-             }
-
-             const finalDataUrl = canvas.toDataURL("image/jpeg", 0.9);
-             const newProxy = { id: 'proxy-' + Date.now(), name: customName || baseCard.name, image: finalDataUrl, proxyImage: finalDataUrl, imageBack: null, type: baseCard.type, cmc: baseCard.cmc || 0, colors: card ? (card.colors || []) : [], isCommander: false, isCustom: true };
-             let savedProxies = JSON.parse(localStorage.getItem('mtg_proxies') || '[]');
-             savedProxies.push(newProxy); localStorage.setItem('mtg_proxies', JSON.stringify(savedProxies));
-             setIsGenerating(false);
-             if(isStandalone) { alert("Proxy Salvata nel Database! (Vai nel Deckbuilder -> Le Mie Proxy per usarla)"); } 
-             else { onSave({...card, proxyImage: finalDataUrl, name: customName || card.name, isCustom: true}); }
-          };
-        };
-      };
-
-      const editorUI = (
-        <div className="w-full max-w-md bg-gray-800 p-4 rounded-xl border border-gray-600 shadow-2xl space-y-4 mx-auto animate-fade">
-          <div className="flex justify-between items-center mb-2 border-b border-gray-700 pb-2">
-             <h2 className="text-xl font-bold text-purple-400">Proxy Creator</h2>
-             {!isStandalone && <button onClick={onClose} className="bg-gray-600 px-3 py-1 rounded text-white font-bold">✖ Chiudi</button>}
-          </div>
-          {isStandalone && (
-            <div className="flex gap-2 mb-4">
-              <input type="text" placeholder="Originale (es. Sol Ring)" value={baseQuery} onChange={e => setBaseQuery(e.target.value)} className="flex-1 bg-gray-900 border border-gray-600 p-2 rounded text-white outline-none" />
-              <button onClick={searchBase} className="bg-purple-600 hover:bg-purple-500 px-3 rounded text-white font-bold transition-colors">Cerca</button>
-            </div>
-          )}
-          {baseCard && (
-           <div className="animate-fade space-y-3">
-             <input type="text" placeholder="Nuovo Titolo (Opzionale)" value={customName} onChange={e => setCustomName(e.target.value)} className="w-full bg-gray-900 border border-gray-600 p-2 rounded text-white font-bold outline-none" />
-             <label className="block w-full bg-gray-700 hover:bg-gray-600 text-center py-2 rounded cursor-pointer font-bold text-sm text-white shadow border border-gray-500 transition-colors">📸 Carica Immagine <input type="file" accept="image/*" className="hidden" onChange={handleImage} /></label>
-             {customImg && (
-                 <div className="bg-gray-900 p-3 rounded-lg border border-gray-700 space-y-3">
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-bold text-blue-400 uppercase">Cornice Riquadro</p>
-                      <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-white font-bold">Su</span><input type="range" min="0" max="30" step="0.5" value={maskTop} onChange={e=>setMaskTop(e.target.value)} className="w-full accent-blue-500" /></div>
-                      <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-white font-bold">Alt.</span><input type="range" min="20" max="100" step="0.5" value={maskHeight} onChange={e=>setMaskHeight(e.target.value)} className="w-full accent-blue-500" /></div>
-                      <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-white font-bold">Sx</span><input type="range" min="0" max="20" step="0.2" value={maskLeft} onChange={e=>setMaskLeft(e.target.value)} className="w-full accent-blue-500" /></div>
-                      <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-white font-bold">Largh.</span><input type="range" min="50" max="100" step="0.5" value={maskWidth} onChange={e=>setMaskWidth(e.target.value)} className="w-full accent-blue-500" /></div>
-                    </div>
-                    <div className="space-y-1 pt-2 border-t border-gray-700">
-                      <p className="text-[10px] font-bold text-purple-400 uppercase">Foto Interna</p>
-                      <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-white font-bold">Zoom</span><input type="range" min="1" max="3" step="0.1" value={zoom} onChange={e=>setZoom(e.target.value)} className="w-full accent-purple-500" /></div>
-                      <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-white font-bold">Orizz</span><input type="range" min="0" max="100" value={posX} onChange={e=>setPosX(e.target.value)} className="w-full accent-purple-500" /></div>
-                      <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-white font-bold">Vert</span><input type="range" min="0" max="100" value={posY} onChange={e=>setPosY(e.target.value)} className="w-full accent-purple-500" /></div>
-                    </div>
-                 </div>
-             )}
-             <div className="relative w-full rounded-xl overflow-hidden shadow-2xl bg-black border border-gray-600 mt-4" style={{ aspectRatio: '63/88' }}>
-                 <img src={baseCard.img} className="absolute inset-0 w-full h-full pointer-events-none" />
-                 {customImg && (
-                   <div className="absolute bg-black z-10 overflow-hidden shadow-[inset_0_0_15px_rgba(0,0,0,0.8)] border border-black/50" style={{ top: `${maskTop}%`, left: `${maskLeft}%`, width: `${maskWidth}%`, height: `${maskHeight}%` }}>
-                     <img src={customImg} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', transform: `translate(${posX - 50}%, ${posY - 50}%) scale(${zoom})` }} />
-                   </div>
-                 )}
-                 {customName && (
-                   <div className="absolute z-20 flex items-center px-3" style={{ top: '4.8%', left: '7.5%', width: '65%', height: '4.5%' }}>
-                     <span className="text-white tracking-wider truncate" style={{ fontFamily: "Georgia, serif", fontSize: '16px', fontWeight: '900', textShadow: '2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000' }}>{customName}</span>
-                   </div>
-                 )}
-             </div>
-             <button onClick={eseguiSalvataggio} disabled={isGenerating} className="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-4 rounded-lg shadow-[0_0_15px_rgba(22,163,74,0.5)] mt-4 flex justify-center transition-all">
-                 {isGenerating ? 'Attendere...' : (isStandalone ? '💾 Crea & Salva Database' : '💾 Applica Proxy al Mazzo')}
-             </button>
-           </div>
-          )}
-        </div>
-      );
-
-      if (isStandalone) return <div className="max-w-md mx-auto pt-4 pb-10 relative z-20">{editorUI}</div>;
-      
-      return (
-        <div className="fixed inset-0 bg-gray-900 z-[9999] h-[100dvh] w-full flex flex-col animate-fade overflow-y-auto">
-           <div className="flex items-center justify-between p-4 bg-gray-800 border-b border-gray-700 sticky top-0 z-50 shadow-md">
-             <button onClick={onClose} className="text-blue-400 font-bold flex items-center gap-1"><Icons.Back /> Indietro</button>
-             <h2 className="text-lg font-bold text-white truncate text-center">Proxy Editor</h2>
-             <div className="w-8"></div>
-           </div>
-           <div className="flex-1 p-4 flex flex-col items-center pb-20">{editorUI}</div>
-        </div>
-      );
-    };
-
+// --- INIZIO PARTE 2 ---
     const DeckBuilder = ({navigate, activeDeck}) => {
       const [deckName, setDeckName] = useState(activeDeck ? activeDeck.name : "");
       const [deckFormat, setDeckFormat] = useState(activeDeck ? (activeDeck.format || 'commander') : 'commander');
@@ -442,6 +12,7 @@
       const [colorMatchType, setColorMatchType] = useState('include'); 
       const [isMulticolorOnly, setIsMulticolorOnly] = useState(false);
       const [isCommanderOnly, setIsCommanderOnly] = useState(false);
+
       const [superType, setSuperType] = useState("");
       const [cardType, setCardType] = useState("");
       const [cardType2, setCardType2] = useState("");
@@ -460,16 +31,19 @@
       
       const [managingCard, setManagingCard] = useState(null);
       const [manageQty, setManageQty] = useState(0);
+
       const [editingProxyCard, setEditingProxyCard] = useState(null);
       const [importText, setImportText] = useState("");
       const [showImport, setShowImport] = useState(false);
       
       const [savedScroll, setSavedScroll] = useState(0);
+
       const [itaImg, setItaImg] = useState(null);
       const [itaImgBack, setItaImgBack] = useState(null);
       const [showIta, setShowIta] = useState(false);
       const [showBack, setShowBack] = useState(false);
       const [translating, setTranslating] = useState(false);
+      
       const [printsList, setPrintsList] = useState([]);
       const [loadingPrints, setLoadingPrints] = useState(false);
 
@@ -489,7 +63,9 @@
       const fetchOtherPrints = (card) => {
           if(!card.printsUrl) return alert("Questa carta non ha altre stampe disponibili sul database.");
           setLoadingPrints(true);
-          fetch(card.printsUrl).then(res => res.json()).then(data => {
+          fetch(card.printsUrl)
+            .then(res => res.json())
+            .then(data => {
                 if(data.data && data.data.length > 0) {
                     const mapped = data.data.filter(c => c.image_uris || (c.card_faces && c.card_faces.length > 0 && c.card_faces[0].image_uris)).map(c => {
                          let iImg = ""; let iImgBack = null;
@@ -510,12 +86,11 @@
          if (!managingCard) return;
          const cardKey = buildCardKey(managingCard);
          setDeck(deck.map(c => {
-             if (buildCardKey(c) === cardKey) return { ...c, image: newImg, imageBack: newImgBack };
+             if (buildCardKey(c) === cardKey) { return { ...c, image: newImg, imageBack: newImgBack }; }
              return c;
          }));
          setManagingCard({...managingCard, image: newImg, imageBack: newImgBack});
-         setPrintsList([]);
-         setShowIta(false);
+         setPrintsList([]); setShowIta(false);
          alert("Immagine aggiornata con successo per tutte le copie!");
       };
 
@@ -523,7 +98,9 @@
         if (card.isCustom) return alert("Le carte Proxy non possono essere tradotte dal database.");
         if (itaImg) { setShowIta(!showIta); return; } 
         setTranslating(true);
-        fetch(`https://api.scryfall.com/cards/search?q=!"${card.name}"+lang:it`).then(res => res.json()).then(data => {
+        fetch(`https://api.scryfall.com/cards/search?q=!"${card.name}"+lang:it`)
+          .then(res => res.json())
+          .then(data => {
              if (data.data && data.data.length > 0) {
                  const itCard = data.data[0];
                  let iImg = null; let iImgBack = null;
@@ -543,13 +120,16 @@
 
       const eseguiRicerca = (url, isNewSearch = false) => {
         setLoading(true);
-        fetch(url).then(res => res.json()).then(data => {
+        fetch(url)
+          .then(res => res.json())
+          .then(data => {
             try {
                 if (data.data && Array.isArray(data.data)) {
                    const cards = data.data.filter(c => c.image_uris || (c.card_faces && c.card_faces.length > 0 && c.card_faces[0].image_uris)).map(c => {
                      let img = ""; let imgBack = null;
                      let oracle_text = c.oracle_text || "";
                      let mana_cost = c.mana_cost || "";
+
                      if (c.image_uris && c.image_uris.normal) { img = c.image_uris.normal; } 
                      else if (c.card_faces && c.card_faces.length > 0) {
                          if (c.card_faces[0].image_uris && c.card_faces[0].image_uris.normal) img = c.card_faces[0].image_uris.normal;
@@ -557,7 +137,21 @@
                          if (!oracle_text) oracle_text = c.card_faces.map(f=>f.oracle_text).join(' ');
                          if (!mana_cost) mana_cost = c.card_faces[0].mana_cost;
                      }
-                     return { id: c.id || Math.random().toString(), name: c.name || "Sconosciuta", image: img, imageBack: imgBack, type: c.type_line || "", cmc: c.cmc || 0, colors: c.color_identity || [], legalities: c.legalities || {}, printsUrl: c.prints_search_uri || null, isCommander: false, isCompanion: false, oracle_text: oracle_text, mana_cost: mana_cost };
+                     return { 
+                         id: c.id || Math.random().toString(), 
+                         name: c.name || "Sconosciuta", 
+                         image: img, 
+                         imageBack: imgBack, 
+                         type: c.type_line || "", 
+                         cmc: c.cmc || 0, 
+                         colors: c.color_identity || [], 
+                         legalities: c.legalities || {}, 
+                         printsUrl: c.prints_search_uri || null, 
+                         isCommander: false,
+                         isCompanion: false,
+                         oracle_text: oracle_text,
+                         mana_cost: mana_cost
+                     };
                    });
                    if(isNewSearch) { setAllResults(cards); setLocalPage(0); } else { setAllResults(prev => [...prev, ...cards]); }
                    setNextScryfallUrl(data.has_more ? data.next_page : null);
@@ -571,6 +165,7 @@
         let searchQuery = query ? `${query} ` : "";
         if (oracleText) searchQuery += `o:"${oracleText}" `;
         if (rarity) searchQuery += `r:${rarity} `;
+        
         if (mana.length > 0) {
            let mStr = mana.join('');
            if (colorMatchType === 'exact') searchQuery += cardType === 'land' ? `id=${mStr} ` : `c=${mStr} `;
@@ -578,11 +173,13 @@
         }
         if (isMulticolorOnly) searchQuery += `c>1 `;
         if (isCommanderOnly) searchQuery += `is:commander `;
+
         if (superType) searchQuery += `t:${superType} `;
         if (cardType) searchQuery += `t:${cardType} `;
         if (cardType2) searchQuery += `t:${cardType2} `;
         if (subType) searchQuery += `t:${subType} `;
         if (cmcVal !== "") searchQuery += `cmc${cmcOp}${cmcVal} `;
+        
         if(!searchQuery.trim()) return alert("Inserisci almeno un parametro di ricerca!");
         eseguiRicerca(`https://api.scryfall.com/cards/search?q=${encodeURIComponent(searchQuery.trim())}`, true);
       };
@@ -596,6 +193,7 @@
 
       const maxLocalPages = allResults.length > 0 ? Math.ceil(allResults.length / 15) : 0;
       const currentResults = allResults.length > 0 ? allResults.slice(localPage * 15, (localPage + 1) * 15) : [];
+
       const goToNextPage = () => { if (localPage + 1 < maxLocalPages) { setLocalPage(localPage + 1); } else if (nextScryfallUrl) { eseguiRicerca(nextScryfallUrl, false); setLocalPage(localPage + 1); } };
       const goToPrevPage = () => { if (localPage > 0) setLocalPage(localPage - 1); };
 
@@ -604,8 +202,7 @@
         for(let i=0; i<addQty; i++) {
            newCards.push({...selectedCard, deckId: 'card-' + Date.now() + '-' + i + '-' + Math.random(), isCommander: false, isSideboard: addToSideboard, isCompanion: false});
         }
-        setDeck([...deck, ...newCards]);
-        closeSubView(setSelectedCard);
+        setDeck([...deck, ...newCards]); closeSubView(setSelectedCard);
       };
 
       const saveDeck = () => {
@@ -615,22 +212,19 @@
         if(activeDeck) savedDecks = savedDecks.map(d => d.id === activeDeck.id ? newDeckObj : d);
         else savedDecks.push(newDeckObj);
         localStorage.setItem('mtg_decks', JSON.stringify(savedDecks));
-        alert("Mazzo Salvato con successo!");
-        navigate('mydecks');
+        alert("Mazzo Salvato con successo!"); navigate('mydecks');
       };
 
       const handleImport = () => {
         if(!importText.trim()) return;
-        setLoading(true);
-        const lines = importText.split('\n');
-        let promises = [];
+        setLoading(true); const lines = importText.split('\n'); let promises = [];
         for (let i = 0; i < lines.length; i++) {
-          let line = lines[i].trim();
-          if(!line) continue;
-          const match = line.match(/^(\d+)?\s*(.*)$/);
-          let qty = match[1] ? parseInt(match[1]) : 1;
-          let name = match[2];
-          let p = fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(name)}`).then(res => { if(res.ok) return res.json(); throw new Error('Not found'); }).then(c => {
+          let line = lines[i].trim(); if(!line) continue;
+          const match = line.match(/^(\d+)?\s*(.*)$/); let qty = match[1] ? parseInt(match[1]) : 1; let name = match[2];
+          
+          let p = fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(name)}`)
+            .then(res => { if(res.ok) return res.json(); throw new Error('Not found'); })
+            .then(c => {
                let arr = [];
                for(let j=0; j<qty; j++) {
                  let img = ""; let imgBack = null; let oracle_text = c.oracle_text || ""; let mana_cost = c.mana_cost || "";
@@ -647,6 +241,7 @@
             }).catch(e => { return []; });
           promises.push(p);
         }
+        
         Promise.all(promises).then(resultsArray => {
            let newCards = []; resultsArray.forEach(arr => { newCards = newCards.concat(arr); });
            setDeck(prev => prev.concat(newCards)); setShowImport(false); setImportText(""); setLoading(false);
@@ -721,27 +316,38 @@
                  if (comp.colors) { comp.colors.forEach(col => { if (!cmdColors.has(col)) compInvalidColor = true; }); }
                  if (compInvalidColor) warnings.push(`Il Companion "${comp.name}" non rispetta l'identità di colore del Comandante.`);
              }
+
              if (compName.includes("kaheera")) { if (deckToCheck.some(c => c.type && c.type.toLowerCase().includes("creature") && !/cat|elemental|nightmare|dinosaur|beast/i.test(c.type.toLowerCase()))) warnings.push("Kaheera: Tutte le creature del mazzo devono essere Gatti, Elementali, Incubi, Dinosauri o Bestie."); }
-             if (compName.includes("gyruda")) { if (deckToCheck.some(c => (c.cmc || 0) % 2 !== 0)) warnings.push("Gyruda: Tutte le carte del mazzo devono avere Costo di Mana Pari."); }
-             if (compName.includes("obosh")) { if (deckToCheck.some(c => (c.cmc || 0) > 0 && (c.cmc || 0) % 2 === 0 && !c.type.toLowerCase().includes("land"))) warnings.push("Obosh: Tutte le carte non-terra del mazzo devono avere Costo di Mana Dispari."); }
-             if (compName.includes("lurrus")) { if (deckToCheck.some(c => (c.cmc || 0) > 2 && !c.type.toLowerCase().includes("instant") && !c.type.toLowerCase().includes("sorcery") && !c.type.toLowerCase().includes("land"))) warnings.push("Lurrus: Tutti i permanenti devono avere Costo di Mana 2 o inferiore."); }
-             if (compName.includes("keruga")) { if (deckToCheck.some(c => (c.cmc || 0) < 3 && !c.type.toLowerCase().includes("land"))) warnings.push("Keruga: Tutte le carte non-terra devono avere Costo di Mana 3 o superiore."); }
+             if (compName.includes("gyruda")) { if (deckToCheck.some(c => (c.cmc || 0) % 2 !== 0)) warnings.push("Gyruda: Tutte le carte del mazzo devono avere Costo Pari."); }
+             if (compName.includes("obosh")) { if (deckToCheck.some(c => (c.cmc || 0) > 0 && (c.cmc || 0) % 2 === 0 && !c.type.toLowerCase().includes("land"))) warnings.push("Obosh: Tutte le carte non-terra del mazzo devono avere Costo Dispari."); }
+             if (compName.includes("lurrus")) { if (deckToCheck.some(c => (c.cmc || 0) > 2 && !c.type.toLowerCase().includes("instant") && !c.type.toLowerCase().includes("sorcery") && !c.type.toLowerCase().includes("land"))) warnings.push("Lurrus: Tutti i permanenti devono avere Costo 2 o inferiore."); }
+             if (compName.includes("keruga")) { if (deckToCheck.some(c => (c.cmc || 0) < 3 && !c.type.toLowerCase().includes("land"))) warnings.push("Keruga: Tutte le carte non-terra devono avere Costo 3 o superiore."); }
              if (compName.includes("jegantha")) {
                  if (deckToCheck.some(c => {
-                    if (!c.mana_cost) return false;
-                    const matches = c.mana_cost.match(/\{[WUBRG]\}/g) || [];
-                    const counts = {}; matches.forEach(m => counts[m] = (counts[m] || 0) + 1);
-                    return Object.values(counts).some(v => v > 1);
+                    if (!c.mana_cost) return false; const matches = c.mana_cost.match(/\{[WUBRG]\}/g) || []; const counts = {}; matches.forEach(m => counts[m] = (counts[m] || 0) + 1); return Object.values(counts).some(v => v > 1);
                  })) warnings.push("Jegantha: Nessuna carta può avere simboli di mana doppi nel costo.");
              }
              if (compName.includes("yorion")) {
                  if (deckFormat === 'commander') warnings.push("Yorion non è un Companion legale in Commander (richiede 120 carte totali).");
                  else if (mainDeckCards.length < 80) warnings.push("Yorion: Il mazzo principale deve avere almeno 80 carte.");
              }
+             if (compName.includes("umori")) {
+                 const nonLands = deckToCheck.filter(c => !c.type.toLowerCase().includes("land")); const types = new Set();
+                 nonLands.forEach(c => { const tl = c.type.toLowerCase(); if(tl.includes("creature")) types.add("creature"); else if(tl.includes("artifact")) types.add("artifact"); else if(tl.includes("enchantment")) types.add("enchantment"); else if(tl.includes("planeswalker")) types.add("planeswalker"); else if(tl.includes("instant")) types.add("instant"); else if(tl.includes("sorcery")) types.add("sorcery"); else if(tl.includes("battle")) types.add("battle"); });
+                 if (types.size > 1) warnings.push("Umori: Tutte le carte non-terra devono condividere lo stesso tipo (es. tutte Creature o tutti Artefatti).");
+             }
+             if (compName.includes("zirda")) {
+                 if (deckToCheck.some(c => {
+                    const tl = c.type.toLowerCase();
+                    if(tl.includes("instant") || tl.includes("sorcery") || tl.includes("basic land") || tl.includes("planeswalker")) return false; 
+                    if(tl.includes("land") && !c.oracle_text) return false; 
+                    return !/:|Equip|Cycling|Scavenge|Unearth|Outlast|Ninjutsu|Transfigure|Fortify|Bloodrush|Megamorph|Monstrosity|Adapt|Awaken|Exert|Embalm|Eternalize|Crew|Level Up/i.test(c.oracle_text || "");
+                 })) warnings.push("Zirda: Ogni permanente nel mazzo deve avere un'abilità attivata.");
+             }
+             if (compName.includes("lutri") && deckFormat === 'commander') warnings.push("Lutri è BANNATO in Commander.");
          }
 
-         let hasIllegalColor = false;
-         let nameCounts = {};
+         let hasIllegalColor = false; let nameCounts = {};
          const multiCopyAllowed = ["relentless rats", "rat colony", "shadowborn apostle", "persistent petitioners", "dragon's approach", "slime against humanity", "nazgûl"];
 
          deck.forEach(c => {
@@ -751,10 +357,7 @@
             if (deckFormat === 'commander' && !c.isCommander && !c.isCompanion && c.colors && c.colors.length > 0) {
                if (cmdColors.size === 0) hasIllegalColor = true; else c.colors.forEach(col => { if (!cmdColors.has(col)) hasIllegalColor = true; });
             }
-            let nLower = c.name ? c.name.toLowerCase() : "";
-            let isBasic = c.type && c.type.toLowerCase().includes("basic");
-            let canBypassCount = isBasic || multiCopyAllowed.includes(nLower);
-            nameCounts[c.name] = (nameCounts[c.name] || 0) + 1;
+            let nLower = c.name ? c.name.toLowerCase() : ""; let isBasic = c.type && c.type.toLowerCase().includes("basic"); let canBypassCount = isBasic || multiCopyAllowed.includes(nLower); nameCounts[c.name] = (nameCounts[c.name] || 0) + 1;
             
             if (!canBypassCount) {
                if (deckFormat === 'commander' && nameCounts[c.name] > 1 && !c.isCompanion) {
@@ -774,18 +377,15 @@
       const isSubViewActive = selectedCard || managingCard || editingProxyCard;
 
       const RenderModaleCarta = ({ targetCard, setterState, qtyVal, setQtyVal, actionLabel, actionFunc, closeFunc }) => {
-         const defFront = targetCard.proxyImage || targetCard.image || "mtg-bg.jpg";
-         const defBack = targetCard.imageBack;
-         const currentFront = showIta && itaImg ? itaImg : defFront;
-         const currentBack = showIta && itaImgBack ? itaImgBack : defBack;
+         const defFront = targetCard.proxyImage || targetCard.image || "mtg-bg.jpg"; const defBack = targetCard.imageBack;
+         const currentFront = showIta && itaImg ? itaImg : defFront; const currentBack = showIta && itaImgBack ? itaImgBack : defBack;
          const displayImg = showBack && currentBack ? currentBack : currentFront;
 
          return (
             <div className="w-full flex flex-col animate-fade pb-10">
                <div className="flex items-center justify-between p-4 bg-gray-800 border-b border-gray-700 sticky top-0 z-50 shadow-md mb-6">
                  <button onClick={() => closeSubView(closeFunc)} className="text-blue-400 font-bold flex items-center gap-1 text-lg"><Icons.Back /> Indietro</button>
-                 <h2 className="ml-4 font-bold text-white truncate max-w-[50%]">{targetCard.name}</h2>
-                 <div className="w-8"></div>
+                 <h2 className="ml-4 font-bold text-white truncate max-w-[50%]">{targetCard.name}</h2><div className="w-8"></div>
                </div>
                <div className="flex-1 flex flex-col items-center justify-start p-2">
                  <img src={displayImg} alt={targetCard.name} className="w-auto max-h-[50vh] object-contain rounded-xl mb-4 shadow-2xl" />
@@ -797,9 +397,7 @@
                       {translating ? "Traduco..." : (showIta ? "🇬🇧 Torna in Inglese" : "🇮🇹 Tenta Traduzione")}
                     </button>
                     {!targetCard.isCustom && targetCard.printsUrl && (
-                        <button onClick={() => fetchOtherPrints(targetCard)} disabled={loadingPrints} className="flex-1 bg-orange-600 hover:bg-orange-500 text-white font-bold py-3 rounded-xl shadow-lg border border-orange-500 transition-all text-xs">
-                          {loadingPrints ? "Cerco..." : "🖼️ Altre Stampe"}
-                        </button>
+                        <button onClick={() => fetchOtherPrints(targetCard)} disabled={loadingPrints} className="flex-1 bg-orange-600 hover:bg-orange-500 text-white font-bold py-3 rounded-xl shadow-lg border border-orange-500 transition-all text-xs">🖼️ Altre Stampe</button>
                     )}
                  </div>
                  {printsList.length > 0 && (
@@ -808,8 +406,7 @@
                        <div className="flex overflow-x-auto gap-2 pb-2">
                           {printsList.map(p => (
                              <div key={p.id} className="flex flex-col items-center shrink-0">
-                               <img src={p.image} className="w-20 rounded cursor-pointer border-2 border-transparent hover:border-blue-500 shadow-sm" 
-                                    onClick={() => { setterState({...targetCard, image: p.image, imageBack: p.imageBack}); setShowIta(false); }} />
+                               <img src={p.image} className="w-20 rounded cursor-pointer border-2 border-transparent hover:border-blue-500 shadow-sm" onClick={() => { setterState({...targetCard, image: p.image, imageBack: p.imageBack}); setShowIta(false); }} />
                                {actionLabel === "Gestisci" && (
                                   <button onClick={() => changeArtOfExistingCard(p.image, p.imageBack)} className="mt-1 text-[8px] bg-blue-600 text-white px-1 rounded hover:bg-blue-500 font-bold">APPLICA</button>
                                )}
@@ -845,8 +442,7 @@
             <div className="w-full flex flex-col animate-fade pb-10">
                <div className="flex items-center justify-between p-4 bg-gray-800 border-b border-gray-700 sticky top-0 z-50 shadow-md mb-6">
                  <button onClick={() => closeSubView(setEditingProxyCard)} className="text-blue-400 font-bold flex items-center gap-1 text-lg"><Icons.Back /> Indietro</button>
-                 <h2 className="ml-4 font-bold text-white truncate max-w-[50%]">Proxy Editor</h2>
-                 <div className="w-8"></div>
+                 <h2 className="ml-4 font-bold text-white truncate max-w-[50%]">Proxy Editor</h2><div className="w-8"></div>
                </div>
                <ProxyEditor card={editingProxyCard} onClose={() => closeSubView(setEditingProxyCard)} onSave={saveInlineProxy} isStandalone={false} />
             </div>
@@ -858,14 +454,9 @@
                 <div className="flex justify-between items-center bg-gray-900 p-2 rounded border border-gray-700 mb-3">
                   <span className="text-gray-400 text-sm font-bold ml-2">Formato:</span>
                   <select value={deckFormat} onChange={e => setDeckFormat(e.target.value)} className="bg-gray-800 text-white p-2 rounded font-bold border border-gray-600 outline-none">
-                     <option value="commander">Commander</option>
-                     <option value="standard">Standard</option>
-                     <option value="pioneer">Pioneer</option>
-                     <option value="modern">Modern</option>
-                     <option value="legacy">Legacy</option>
-                     <option value="vintage">Vintage</option>
-                     <option value="pauper">Pauper</option>
-                     <option value="premodern">Premodern</option>
+                     <option value="commander">Commander</option><option value="standard">Standard</option><option value="pioneer">Pioneer</option>
+                     <option value="modern">Modern</option><option value="legacy">Legacy</option><option value="vintage">Vintage</option>
+                     <option value="pauper">Pauper</option><option value="premodern">Premodern</option>
                   </select>
                 </div>
                 <div className="flex justify-between items-center text-sm mb-2">
@@ -992,14 +583,18 @@
                              </h4>
                              {cardsInCat.map((card, index) => (
                                <div key={index} className={`flex gap-2 bg-gray-900 p-2 rounded-lg border ${card.isCmdrFlag ? 'border-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.3)]' : (card.isCompFlag ? 'border-pink-500 shadow-[0_0_10px_rgba(236,72,153,0.3)]' : (card.isSideboard ? 'border-indigo-500' : 'border-gray-700'))}`}>
+                                 
                                  <div className="relative cursor-pointer shrink-0" onClick={() => openSubView(setManagingCard, card, setManageQty, card.count)}>
                                      <img src={card.proxyImage || card.image || "mtg-bg.jpg"} alt={card.name} className="w-14 rounded object-cover shadow border border-gray-600" />
                                      <div className="absolute -top-2 -right-2 bg-blue-600 text-white font-black text-xs w-6 h-6 flex items-center justify-center rounded-full shadow border border-blue-400">
                                         {card.count}
                                      </div>
                                  </div>
+                                 
                                  <div className="flex-1 text-sm flex flex-col justify-between pt-1 overflow-hidden">
-                                   <h4 className="font-bold text-gray-200 text-xs leading-tight truncate pr-1 cursor-pointer" onClick={() => openSubView(setManagingCard, card, setManageQty, card.count)}>{card.name}</h4>
+                                   <h4 className="font-bold text-gray-200 text-xs leading-tight truncate pr-1 cursor-pointer" onClick={() => openSubView(setManagingCard, card, setManageQty, card.count)}>
+                                       {card.name}
+                                   </h4>
                                    <div className="flex items-center justify-between mt-1">
                                      <div className="flex items-center gap-2">
                                        {deckFormat === 'commander' && !card.isSideboard && !card.isCompFlag && (
@@ -1048,7 +643,8 @@
       const deckMap = {};
       deck.cards.forEach(c => {
          const key = buildCardKey(c); 
-         if(!deckMap[key]) { deckMap[key] = { ...c, count: 1 }; } else { deckMap[key].count++; }
+         if(!deckMap[key]) { deckMap[key] = { ...c, count: 1 }; } 
+         else { deckMap[key].count++; }
       });
       const groupedByCategory = { "Comandante": [], "Companion": [], "Creature": [], "Planeswalker": [], "Istantanei": [], "Stregonerie": [], "Artefatti": [], "Incantesimi": [], "Terre": [], "Altro": [], "Sideboard": [] };
       Object.values(deckMap).forEach(c => { groupedByCategory[getCardCategory(c)].push(c); });
@@ -1126,9 +722,7 @@
                       {translating ? "Traduco..." : (showIta ? "🇬🇧 Torna in Inglese" : "🇮🇹 Tenta Traduzione")}
                     </button>
                     {!viewingCard.isCustom && viewingCard.printsUrl && (
-                        <button onClick={() => fetchOtherPrints(viewingCard)} disabled={loadingPrints} className="flex-1 bg-orange-600 hover:bg-orange-500 text-white font-bold py-3 rounded-xl shadow-lg border border-orange-500 transition-all text-xs">
-                          {loadingPrints ? "Cerco..." : "🖼️ Altre Stampe"}
-                        </button>
+                        <button onClick={() => fetchOtherPrints(viewingCard)} disabled={loadingPrints} className="flex-1 bg-orange-600 hover:bg-orange-500 text-white font-bold py-3 rounded-xl shadow-lg border border-orange-500 transition-all text-xs">🖼️ Altre Stampe</button>
                     )}
                  </div>
                  {printsList.length > 0 && (
@@ -1184,17 +778,27 @@
       );
     };
 
-    // --- MyDecks (Griglia 2 Colonne e Ricerca Colori) ---
     const MyDecks = ({navigate}) => {
       const [decks, setDecks] = useState([]);
       const [filterQuery, setFilterQuery] = useState("");
       const [manaFilter, setManaFilter] = useState([]);
+      
       useEffect(() => { setDecks(JSON.parse(localStorage.getItem('mtg_decks') || '[]')); }, []);
+
       const toggleMana = (m) => setManaFilter(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
+
       const deleteDeck = (id) => {
-        if(confirm("Eliminare definitivamente?")) { const newD = decks.filter(d => d.id !== id); localStorage.setItem('mtg_decks', JSON.stringify(newD)); setDecks(newD); }
+        if(confirm("Eliminare definitivamente?")) {
+          const newD = decks.filter(d => d.id !== id);
+          localStorage.setItem('mtg_decks', JSON.stringify(newD));
+          setDecks(newD);
+        }
       };
-      const exportText = (deck) => { const text = deck.cards.map(c => `1 ${c.name}`).join('\n'); navigator.clipboard.writeText(text); alert("Lista copiata negli appunti!"); };
+
+      const exportText = (deck) => {
+        const text = deck.cards.map(c => `1 ${c.name}`).join('\n');
+        navigator.clipboard.writeText(text); alert("Lista copiata negli appunti!");
+      };
 
       const filteredDecks = decks.filter(d => {
          const matchName = d.name.toLowerCase().includes(filterQuery.toLowerCase());
@@ -1257,7 +861,6 @@
       );
     };
 
-    // --- DECK ANALYSIS E CONDIVISIONE ---
     const DeckAnalysis = ({deck, navigate}) => {
       const [showQR, setShowQR] = useState(false);
       if(!deck) return null;
@@ -1327,7 +930,7 @@
 
              <div className="grid grid-cols-3 gap-2 mb-6 text-center">
                <div className="bg-gray-900 p-2 rounded-lg border border-gray-700 shadow-inner">
-                  <p className="text-xs text-gray-400 font-bold uppercase">Carte</p>
+                  <p className="text-xs text-gray-400 font-bold uppercase">Carte (Main)</p>
                   <p className={`text-2xl font-black ${totalCards===100 ? 'text-green-400':'text-red-400'}`}>{totalCards}</p>
                </div>
                <div className="bg-gray-900 p-2 rounded-lg border border-gray-700 shadow-inner">
@@ -1395,7 +998,7 @@
       return (
         <div className="print-container w-full h-full bg-white text-black p-4 absolute top-0 left-0 z-50">
           <div className="no-print mb-4 p-4 bg-gray-100 rounded border border-gray-300 flex justify-between items-center shadow-md">
-            <p className="font-bold text-gray-800 text-sm">Usa "Stampa -> Salva come PDF".<br/>(Carte 63x88mm).</p>
+            <p className="font-bold text-gray-800 text-sm">Usa "Stampa -> Salva come PDF".<br/>(Carte formattate a 63x88mm).</p>
             <div className="space-x-2 flex">
               <button onClick={() => navigate('mydecks')} className="px-4 py-2 bg-gray-500 text-white rounded font-bold transition-colors">Indietro</button>
               <button onClick={() => window.print()} className="px-4 py-2 bg-blue-600 text-white font-bold rounded transition-colors">Stampa PDF</button>
@@ -1413,7 +1016,6 @@
       );
     };
 
-    // --- GAME UTILITY (LIFE TRACKER, MANA E SINCRONIZZAZIONE DANNI CMDR) ---
     const GameUtility = ({view, setView}) => {
       const [setup, setSetup] = useState(true);
       const [numPlayers, setNumPlayers] = useState(4);
@@ -1474,7 +1076,7 @@
       const gridClass = players.length <= 2 ? 'grid-cols-2 grid-rows-1' : (players.length <= 4 ? 'grid-cols-2 grid-rows-2' : 'grid-cols-3 grid-rows-2');
       return (
         <div className="fixed inset-0 z-[100] bg-black p-1 flex flex-col h-[100dvh] w-[100dvw]">
-          <button onClick={() => setView('game')} className="absolute top-2 left-2 z-[110] bg-black/80 px-3 py-2 rounded-full text-white text-xs border border-white/20 font-bold shadow-lg">✖ Esci / Setup</button>
+          <button onClick={() => setView('game')} className="absolute top-2 left-2 z-[110] bg-black/80 px-3 py-2 rounded-full text-white text-xs border border-white/20 font-bold shadow-lg">✖ Esci</button>
           <div className={`flex-1 grid ${gridClass} gap-1 h-full w-full pt-12`}>
              {players.map(p => <PlayerCard key={p.id} player={p} updateStat={updateStat} updateMana={updateMana} toggleImmunity={toggleImmunity} opponents={players.filter(op => op.id !== p.id)} updatePlayerConfig={updatePlayerConfig} />)}
           </div>
@@ -1633,7 +1235,6 @@
     const RulesAI = () => {
       const [question, setQuestion] = useState("");
       const searchRuling = () => { if(question) window.open(`https://www.google.com/search?q=MTG+Ruling+${encodeURIComponent(question)}`, '_blank'); };
-
       return (
         <div className="max-w-md mx-auto space-y-4">
           <div className="bg-gray-800/90 p-6 rounded-xl border border-gray-600 mt-4 text-center backdrop-blur-sm shadow-xl">
