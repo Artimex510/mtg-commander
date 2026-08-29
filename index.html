@@ -39,7 +39,7 @@
 
     const Icons = {
       Menu: () => <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16"/></svg>,
-      Home: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>,
+      Home: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 001 1m-6 0h6"/></svg>,
       Back: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
     };
 
@@ -246,6 +246,7 @@
       return (
          <div className="max-w-md mx-auto bg-gray-800/90 p-6 rounded-xl shadow-lg border border-gray-600 mt-4 backdrop-blur-sm space-y-6">
            <h2 className="text-3xl font-black text-center text-blue-400 drop-shadow-md">Backup & Sync</h2>
+           <p className="text-gray-300 text-sm font-semibold text-center leading-snug">Usa questa funzione per passare istantaneamente tutti i tuoi mazzi e le tue proxy dal Telefono al PC, o viceversa.</p>
            <div className="bg-gray-900 p-4 rounded-xl border border-gray-700 shadow-inner">
               <h3 className="text-white font-bold mb-2 flex items-center gap-2">1. Esporta Dati</h3>
               <p className="text-xs text-gray-400 mb-4">Salva l'intero database sul tuo dispositivo. Invia questo file su Google Drive, Telegram o Email.</p>
@@ -257,7 +258,8 @@
               <h3 className="text-white font-bold mb-2 flex items-center gap-2">2. Importa Dati</h3>
               <p className="text-xs text-red-400 mb-4 font-bold">⚠️ ATTENZIONE: Caricando un file, sovrascriverai i mazzi attuali su questo dispositivo con quelli del backup.</p>
               <label className="block w-full bg-green-600 hover:bg-green-500 text-center py-4 rounded-xl cursor-pointer font-black text-white shadow-[0_0_15px_rgba(22,163,74,0.4)] transition-colors">
-                 📂 CARICA BACKUP (.json) <input type="file" accept=".json" className="hidden" onChange={importData} />
+                 📂 CARICA BACKUP (.json)
+                 <input type="file" accept=".json" className="hidden" onChange={importData} />
               </label>
            </div>
          </div>
@@ -288,7 +290,7 @@
 
       return (
          <div className="max-w-3xl mx-auto space-y-4 animate-fade">
-           <div className="bg-gray-800/90 p-4 rounded-xl border border-gray-600 shadow-md backdrop-blur-sm flex justify-between items-center">
+           <div className="bg-gray-800/90 p-4 rounded-xl border border-gray-600 shadow-md backdrop-blur-sm flex justify-between items-center mt-4">
               <h2 className="text-xl font-bold text-purple-400">Le Mie Proxy ({proxies.length})</h2>
               <button onClick={() => navigate('proxycreator')} className="bg-purple-600 px-3 py-1 rounded text-white font-bold shadow text-sm">+ Crea</button>
            </div>
@@ -305,6 +307,184 @@
       );
     };
 
+    // --- PLAYTESTER SANDBOX (Tavolo Virtuale Reintegrato) ---
+    const PlaytesterSandbox = ({view, setView, navigate}) => {
+       const [decks, setDecks] = useState([]);
+       const [selectedDeckId, setSelectedDeckId] = useState("");
+       const [gameState, setGameState] = useState(null); 
+       const [showCardModal, setShowCardModal] = useState(null);
+       const [browsingZone, setBrowsingZone] = useState(null);
+
+       useEffect(() => { setDecks(JSON.parse(localStorage.getItem('mtg_decks') || '[]')); }, []);
+
+       const startPlaytest = () => {
+          if(!selectedDeckId) return alert("Seleziona un mazzo!");
+          const d = decks.find(x => x.id.toString() === selectedDeckId);
+          if(!d) return;
+
+          let initialLibrary = []; let initialCmdZone = [];
+          
+          d.cards.forEach(c => {
+             if(c.isSideboard && !c.isCompanion) return; 
+             if(c.isCommander || c.isCompanion) {
+                initialCmdZone.push({...c, uid: Math.random()});
+             } else {
+                initialLibrary.push({...c, uid: Math.random()});
+             }
+          });
+
+          for (let i = initialLibrary.length - 1; i > 0; i--) {
+             const j = Math.floor(Math.random() * (i + 1));
+             [initialLibrary[i], initialLibrary[j]] = [initialLibrary[j], initialLibrary[i]];
+          }
+
+          setGameState({
+             deckName: d.name, isCommander: d.format === 'commander', mulliganCount: 0, turn: 1,
+             library: initialLibrary, hand: [], battlefield: [], graveyard: [], exile: [], commandZone: initialCmdZone
+          });
+
+          setView('playtester_active');
+          setTimeout(() => doDraw(7, initialLibrary, []), 100);
+       };
+
+       const doDraw = (amount, currentLib, currentHand) => {
+          let newLib = [...currentLib]; let newHand = [...currentHand];
+          for(let i=0; i<amount; i++) { if(newLib.length > 0) newHand.push(newLib.shift()); }
+          setGameState(prev => ({...prev, library: newLib, hand: newHand}));
+       };
+
+       const drawOne = () => { if(!gameState || gameState.library.length === 0) return; doDraw(1, gameState.library, gameState.hand); };
+       const passTurn = () => { if(!gameState) return; setGameState(prev => ({ ...prev, turn: prev.turn + 1, battlefield: prev.battlefield.map(c => ({...c, isTapped: false})) })); drawOne(); };
+
+       const mulligan = () => {
+          if(!gameState) return;
+          let allCards = [...gameState.library, ...gameState.hand, ...gameState.battlefield, ...gameState.graveyard, ...gameState.exile];
+          for (let i = allCards.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [allCards[i], allCards[j]] = [allCards[j], allCards[i]]; }
+          let newMull = gameState.mulliganCount + 1;
+          let cardsToBottom = gameState.isCommander ? (newMull > 1 ? newMull - 1 : 0) : newMull;
+
+          setGameState(prev => ({ ...prev, mulliganCount: newMull, library: allCards, hand: [], battlefield: [], graveyard: [], exile: [] }));
+          setTimeout(() => { doDraw(7, allCards, []); if(cardsToBottom > 0) alert(`Mulligan a 7 effettuato. Metti ${cardsToBottom} carte in fondo al mazzo!`); }, 100);
+       };
+
+       const shuffleLibrary = () => {
+          if(!gameState) return;
+          let lib = [...gameState.library];
+          for (let i = lib.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [lib[i], lib[j]] = [lib[j], lib[i]]; }
+          setGameState(prev => ({...prev, library: lib})); alert("Mazzo mischiato!");
+       };
+
+       const moveCard = (uid, sourceZone, destZone) => {
+          if(!gameState) return; let cardToMove = null;
+          let newSource = gameState[sourceZone].filter(c => { if(c.uid === uid) { cardToMove = c; return false; } return true; });
+          if(!cardToMove) return; cardToMove.isTapped = false;
+          let newGameState = { ...gameState, [sourceZone]: newSource };
+
+          if(destZone === 'libraryBottom') {
+             let lib = sourceZone === 'library' ? [...newSource] : [...gameState.library]; lib.push(cardToMove); newGameState.library = lib;
+          } else if(destZone === 'libraryTop') {
+             let lib = sourceZone === 'library' ? [...newSource] : [...gameState.library]; lib.unshift(cardToMove); newGameState.library = lib;
+          } else {
+             let newDest = sourceZone === destZone ? [...newSource] : [...gameState[destZone]]; newDest.push(cardToMove); newGameState[destZone] = newDest;
+          }
+          setGameState(newGameState); setShowCardModal(null); setBrowsingZone(null);
+       };
+
+       const toggleTap = (uid) => { if(!gameState) return; setGameState(prev => ({ ...prev, battlefield: prev.battlefield.map(c => c.uid === uid ? {...c, isTapped: !c.isTapped} : c) })); };
+
+       if(view === 'playtester') {
+          return (
+             <div className="max-w-md mx-auto bg-gray-800/90 p-6 rounded-xl shadow-lg border border-gray-600 mt-4 backdrop-blur-sm space-y-6 animate-fade">
+               <h2 className="text-3xl font-black text-center text-blue-400 drop-shadow-md">Tavolo Virtuale</h2>
+               <p className="text-xs text-center text-gray-300 font-bold mb-4 bg-gray-900 p-2 rounded border border-gray-700">📱 Sandbox manuale per pescare le mani iniziali e testare le aperture del mazzo.</p>
+               {decks.length === 0 ? ( <p className="text-red-400 font-bold text-center">Nessun mazzo salvato.</p> ) : (
+                  <div className="space-y-4">
+                     <select value={selectedDeckId} onChange={e => setSelectedDeckId(e.target.value)} className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white font-bold outline-none">
+                        <option value="">Seleziona un Mazzo...</option>{decks.map(d => <option key={d.id} value={d.id}>{d.name} ({d.format})</option>)}
+                     </select>
+                     <button onClick={startPlaytest} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl shadow-[0_0_15px_rgba(37,99,235,0.5)] transition-all">AVVIA SIMULATORE</button>
+                  </div>
+               )}
+             </div>
+          );
+       }
+       if(!gameState) return null;
+
+       return (
+          <div className="fixed inset-0 z-[200] bg-green-900 flex flex-col h-[100dvh] w-full animate-fade">
+             {browsingZone && (
+                <div className="fixed inset-0 bg-gray-900 z-[250] flex flex-col animate-fade pb-10">
+                   <div className="flex justify-between items-center p-4 bg-gray-800 border-b border-gray-700 shadow-md">
+                      <h2 className="text-xl font-bold text-white uppercase">{browsingZone === 'library' ? 'Mazzo' : (browsingZone === 'graveyard' ? 'Cimitero' : 'Esilio')} ({gameState[browsingZone].length})</h2>
+                      <div className="flex gap-2">
+                         {browsingZone === 'library' && ( <button onClick={shuffleLibrary} className="bg-blue-600 px-3 py-1 rounded text-white font-bold text-sm shadow">Mischia</button> )}
+                         <button onClick={() => setBrowsingZone(null)} className="bg-red-600 px-3 py-1 rounded text-white font-bold shadow">Chiudi</button>
+                      </div>
+                   </div>
+                   <div className="flex-1 overflow-y-auto p-4 grid grid-cols-3 sm:grid-cols-4 gap-3 content-start">
+                      {gameState[browsingZone].map(c => ( <img key={c.uid} src={c.proxyImage || c.image || "mtg-bg.jpg"} onClick={() => setShowCardModal({card: c, zone: browsingZone})} className="w-full rounded shadow-lg cursor-pointer border border-gray-600 active:scale-95 transition-transform" /> ))}
+                      {gameState[browsingZone].length === 0 && <p className="col-span-3 text-center text-gray-500 font-bold mt-10">Nessuna carta qui.</p>}
+                   </div>
+                </div>
+             )}
+             {showCardModal && (
+                <div className="fixed inset-0 bg-black/90 z-[300] flex flex-col items-center justify-center p-4 animate-fade" onClick={() => setShowCardModal(null)}>
+                   <div onClick={e => e.stopPropagation()} className="w-full max-w-sm flex flex-col items-center">
+                      <img src={showCardModal.card.proxyImage || showCardModal.card.image || "mtg-bg.jpg"} className="w-auto h-[45vh] rounded-xl shadow-2xl mb-6 border border-gray-600" />
+                      <div className="grid grid-cols-2 gap-2 w-full bg-gray-900 p-4 rounded-xl border border-gray-700">
+                         {showCardModal.zone === 'hand' && ( <button onClick={() => moveCard(showCardModal.card.uid, 'hand', 'battlefield')} className="col-span-2 bg-green-600 text-white font-bold py-3 rounded shadow">👇 Gioca sul Campo</button> )}
+                         {showCardModal.zone === 'commandZone' && ( <button onClick={() => moveCard(showCardModal.card.uid, 'commandZone', 'battlefield')} className="col-span-2 bg-yellow-600 text-white font-bold py-3 rounded shadow">👇 Lancia da Cmd Zone</button> )}
+                         {showCardModal.zone === 'battlefield' && ( <button onClick={() => moveCard(showCardModal.card.uid, 'battlefield', 'hand')} className="col-span-2 bg-blue-600 text-white font-bold py-3 rounded shadow">👆 Riprendi in Mano</button> )}
+                         {(showCardModal.zone === 'graveyard' || showCardModal.zone === 'exile' || showCardModal.zone === 'library') && (
+                            <React.Fragment>
+                               <button onClick={() => moveCard(showCardModal.card.uid, showCardModal.zone, 'hand')} className="bg-blue-600 text-white font-bold py-3 rounded text-sm shadow">🖐 Metti in Mano</button>
+                               <button onClick={() => moveCard(showCardModal.card.uid, showCardModal.zone, 'battlefield')} className="bg-green-600 text-white font-bold py-3 rounded text-sm shadow">👇 Gioca Campo</button>
+                            </React.Fragment>
+                         )}
+                         <button onClick={() => moveCard(showCardModal.card.uid, showCardModal.zone, 'graveyard')} className="bg-gray-600 text-white font-bold py-2 rounded text-xs">💀 Cimitero</button>
+                         <button onClick={() => moveCard(showCardModal.card.uid, showCardModal.zone, 'exile')} className="bg-gray-400 text-black font-bold py-2 rounded text-xs">🌌 Esilio</button>
+                         <button onClick={() => moveCard(showCardModal.card.uid, showCardModal.zone, 'libraryTop')} className="bg-indigo-700 text-white font-bold py-2 rounded text-xs">Cima Mazzo</button>
+                         <button onClick={() => moveCard(showCardModal.card.uid, showCardModal.zone, 'libraryBottom')} className="bg-indigo-900 text-white font-bold py-2 rounded text-xs">Fondo Mazzo</button>
+                         <button onClick={() => setShowCardModal(null)} className="col-span-2 bg-red-600 text-white font-bold py-2 rounded mt-2 shadow">❌ Annulla</button>
+                      </div>
+                   </div>
+                </div>
+             )}
+             <div className="bg-black/80 text-white p-2 flex justify-between items-center border-b border-green-700 shadow-md h-[10dvh]">
+                <button onClick={() => setView('playtester')} className="bg-red-600 px-3 py-1 rounded font-bold text-xs shadow">Esci</button>
+                <div className="text-center"><h3 className="font-black text-sm uppercase text-yellow-500">Turno {gameState.turn}</h3></div>
+                <div className="flex gap-1"><button onClick={mulligan} className="bg-orange-600 px-2 py-1 rounded font-bold text-xs shadow">Mulligan</button><button onClick={passTurn} className="bg-blue-600 px-2 py-1 rounded font-bold text-xs shadow">Passa Turno</button></div>
+             </div>
+             <div className="bg-black/50 p-2 flex justify-between items-center h-[12dvh] overflow-x-auto gap-2">
+                <div className="flex gap-2 border-r border-green-800 pr-2 h-full items-center">
+                   {gameState.commandZone.map(c => ( <img key={c.uid} src={c.proxyImage || c.image || "mtg-bg.jpg"} onClick={() => setShowCardModal({card: c, zone: 'commandZone'})} className="h-full rounded border border-yellow-500 shadow-lg cursor-pointer" /> ))}
+                </div>
+                <div className="flex gap-2 pl-1 overflow-x-auto h-full items-center">
+                   <button onClick={drawOne} className="h-full bg-indigo-900/80 rounded border border-indigo-500 flex items-center justify-center px-3 font-black shadow active:scale-95 transition-transform shrink-0">PESCA</button>
+                   <div className="h-full bg-blue-900 rounded border border-blue-500 flex flex-col items-center justify-center px-2 cursor-pointer shrink-0 shadow-lg" onClick={() => setBrowsingZone('library')}><span className="text-[10px] font-bold text-blue-300">Mazzo</span><span className="font-black text-white">{gameState.library.length}</span></div>
+                   <div className="h-full bg-gray-800 rounded border border-gray-500 flex flex-col items-center justify-center px-2 cursor-pointer shrink-0 shadow-lg" onClick={() => setBrowsingZone('graveyard')}><span className="text-[10px] font-bold text-gray-400">Cimitero</span><span className="font-black text-white">{gameState.graveyard.length}</span></div>
+                   {gameState.exile.length > 0 && (<div className="h-full bg-gray-300 rounded border border-gray-500 flex flex-col items-center justify-center px-2 cursor-pointer shrink-0 shadow-lg" onClick={() => setBrowsingZone('exile')}><span className="text-[10px] font-bold text-gray-700">Esilio</span><span className="font-black text-black">{gameState.exile.length}</span></div>)}
+                </div>
+             </div>
+             <div className="flex-1 bg-green-900/50 p-2 overflow-y-auto relative shadow-[inset_0_0_20px_rgba(0,0,0,0.5)]">
+                {gameState.battlefield.length === 0 && <div className="absolute inset-0 flex items-center justify-center text-green-700/50 font-black text-2xl uppercase pointer-events-none">Tavolo di Gioco</div>}
+                <div className="flex flex-wrap gap-3 content-start">
+                   {gameState.battlefield.map(c => (
+                      <div key={c.uid} className="relative w-20 sm:w-24">
+                         <img src={c.proxyImage || c.image || "mtg-bg.jpg"} onClick={() => toggleTap(c.uid)} className={`w-full rounded shadow-md cursor-pointer transition-transform duration-200 border border-black ${c.isTapped ? 'rotate-90 opacity-80' : 'rotate-0'}`} />
+                         <button onClick={(e) => { e.stopPropagation(); setShowCardModal({card: c, zone: 'battlefield'}) }} className="absolute -top-2 -right-2 bg-black/80 text-white rounded-full w-6 h-6 flex items-center justify-center text-[10px] font-bold border border-gray-500 shadow">⚙️</button>
+                      </div>
+                   ))}
+                </div>
+             </div>
+             <div className="h-[25dvh] bg-black/90 p-2 overflow-x-auto flex items-end gap-[-20px] pb-4 shadow-[0_-5px_15px_rgba(0,0,0,0.5)] z-10 pl-4">
+                {gameState.hand.map((c, i) => ( <img key={c.uid} src={c.proxyImage || c.image || "mtg-bg.jpg"} onClick={() => setShowCardModal({card: c, zone: 'hand'})} className="h-full rounded-lg shadow-xl cursor-pointer hover:-translate-y-4 hover:z-20 transition-all border border-gray-700" style={{ marginLeft: i === 0 ? '0' : '-30px', transformOrigin: 'bottom center' }} /> ))}
+             </div>
+          </div>
+       );
+    };
+
+    // --- PROXY EDITOR ---
     const ProxyEditor = ({card, onClose, onSave, isStandalone}) => {
       const [baseQuery, setBaseQuery] = useState("");
       const [baseCard, setBaseCard] = useState(card ? {name: card.name, type: card.type, img: card.image, cmc: card.cmc} : null);
@@ -917,7 +1097,6 @@
                              </h4>
                              {cardsInCat.map((card, index) => (
                                <div key={index} className={`flex gap-2 bg-gray-900 p-2 rounded-lg border ${card.isCmdrFlag ? 'border-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.3)]' : (card.isCompFlag ? 'border-pink-500 shadow-[0_0_10px_rgba(236,72,153,0.3)]' : (card.isSideboard ? 'border-indigo-500' : 'border-gray-700'))}`}>
-                                 
                                  <div className="relative cursor-pointer shrink-0" onClick={() => openSubView(setManagingCard, card, setManageQty, card.count)}>
                                      <img src={card.proxyImage || card.image || "mtg-bg.jpg"} alt={card.name} className="w-14 rounded object-cover shadow border border-gray-600" />
                                      <div className="absolute -top-2 -right-2 bg-blue-600 text-white font-black text-xs w-6 h-6 flex items-center justify-center rounded-full shadow border border-blue-400">{card.count}</div>
@@ -1257,7 +1436,6 @@
       };
 
       const listText = deck.cards.map(c => `1 ${c.name}`).join('\n');
-
       const copyPrompt = () => {
          const prompt = `Agisci come un Master professionista e Deckbuilder esperto di Magic: The Gathering.\nFormato: ${deck.format || 'Commander'}. ${deck.format==='commander'? `Comandante: ${cmdName}.`:''}\nAnalizza curva di mana, banlist e dammi consigli su cosa tagliare e aggiungere.\nLista:\n${listText}`;
          navigator.clipboard.writeText(prompt); alert("Prompt copiato! Incollalo su ChatGPT o Gemini.");
@@ -1304,7 +1482,7 @@
                   <p className="text-2xl font-black text-white">{lands}</p>
                </div>
                <div className="bg-gray-900 p-2 rounded-lg border border-gray-700 shadow-inner">
-                  <p className="text-xs text-gray-400 font-bold uppercase">CMC</p>
+                  <p className="text-xs text-gray-400 font-bold uppercase">CMC Medio</p>
                   <p className="text-2xl font-black text-blue-400">{avgCMC.toFixed(2)}</p>
                </div>
              </div>
@@ -1496,20 +1674,24 @@
 
       const saveName = () => { setIsEditingName(false); if(tempName.trim() !== "") updatePlayerConfig(player.id, 'name', tempName.trim()); else setTempName(player.name); };
 
+      // L'intestazione con il nome del giocatore assolutamente centrato!
       const PlayerHeader = () => (
-         <div className="flex justify-between items-center bg-black/50 p-2 z-30 border-b border-gray-700 h-[20%] min-h-[40px]">
-            <div className="flex flex-col justify-center overflow-hidden w-1/2">
-               {isEditingName ? ( <input autoFocus type="text" value={tempName} onChange={e => setTempName(e.target.value)} onBlur={saveName} onKeyDown={e => e.key === 'Enter' && saveName()} className="bg-gray-700 text-white text-sm px-1 py-1 rounded outline-none w-full border border-gray-500 font-bold" /> ) : (
-                  <span onClick={() => setIsEditingName(true)} className="font-bold text-white text-base drop-shadow-md truncate cursor-pointer text-center md:text-left">{player.name} ✎</span>
+         <div className="relative flex justify-center items-center bg-black/50 p-2 z-30 border-b border-gray-700 h-[20%] min-h-[40px]">
+            {/* Contenitore Nome Centrale */}
+            <div className="flex flex-col items-center justify-center overflow-hidden z-20">
+               {isEditingName ? ( <input autoFocus type="text" value={tempName} onChange={e => setTempName(e.target.value)} onBlur={saveName} onKeyDown={e => e.key === 'Enter' && saveName()} className="bg-gray-700 text-white text-sm px-1 py-1 rounded outline-none w-32 border border-gray-500 font-bold text-center" /> ) : (
+                  <span onClick={() => setIsEditingName(true)} className="font-bold text-white text-base drop-shadow-md truncate cursor-pointer text-center px-4">{player.name} ✎</span>
                )}
-               <div className="flex gap-2 mt-1 justify-center md:justify-start">
+               <div className="flex gap-2 mt-1 justify-center">
                   {player.poison > 0 && <span className="text-green-400 text-xs font-black drop-shadow-md">💧{player.poison}</span>}
                   {player.emblems > 0 && <span className="text-purple-400 text-xs font-black drop-shadow-md">🛡️{player.emblems}</span>}
                </div>
             </div>
-            <div className="flex gap-2 w-1/2 justify-end">
-               <button onClick={() => setViewMode(viewMode === 'mana' ? 'life' : 'mana')} className={`px-3 py-2 rounded-lg text-xs font-bold shadow-lg transition-colors ${viewMode === 'mana' ? 'bg-blue-600 text-white' : 'bg-emerald-700 text-white'}`}>{viewMode === 'mana' ? 'Chiudi' : 'Mana'}</button>
-               <button onClick={() => setViewMode(viewMode === 'stats' || viewMode === 'search' ? 'life' : 'stats')} className={`px-3 py-2 rounded-lg text-xs font-bold shadow-lg transition-colors ${viewMode === 'stats' || viewMode === 'search' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-white'}`}>{viewMode === 'stats' || viewMode === 'search' ? 'Chiudi' : 'Stats'}</button>
+            
+            {/* Tasti laterali allineati a destra */}
+            <div className="absolute right-2 top-2 bottom-2 flex flex-col justify-center gap-1 z-30">
+               <button onClick={() => setViewMode(viewMode === 'mana' ? 'life' : 'mana')} className={`px-2 py-1 rounded shadow-lg text-[10px] font-bold transition-colors ${viewMode === 'mana' ? 'bg-blue-600 text-white' : 'bg-emerald-700 text-white'}`}>{viewMode === 'mana' ? 'Chiudi' : 'Mana'}</button>
+               <button onClick={() => setViewMode(viewMode === 'stats' || viewMode === 'search' ? 'life' : 'stats')} className={`px-2 py-1 rounded shadow-lg text-[10px] font-bold transition-colors ${viewMode === 'stats' || viewMode === 'search' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-white'}`}>{viewMode === 'stats' || viewMode === 'search' ? 'Chiudi' : 'Stats'}</button>
             </div>
          </div>
       );
@@ -1530,12 +1712,15 @@
 
           {/* OVERLAY STATISTICHE (LIFETAP STYLE) */}
           {viewMode === 'stats' && (
-             <div className="absolute inset-0 bg-black/85 backdrop-blur-sm z-40 flex flex-col p-3 animate-fade overflow-y-auto">
-                <h3 className="text-white font-black text-lg mb-2 text-center border-b border-gray-700 pb-1">Danni Comandante</h3>
+             <div className="absolute inset-0 top-[20%] bg-black/90 backdrop-blur-md z-40 flex flex-col p-3 animate-fade overflow-y-auto border-t border-gray-600">
+                <div className="flex justify-between items-center mb-2 border-b border-gray-700 pb-1">
+                    <h3 className="text-white font-black text-lg">Danni Comandante</h3>
+                    <button onClick={() => setViewMode('life')} className="bg-blue-600 px-3 py-1 rounded text-white font-bold text-xs shadow-lg">Chiudi</button>
+                </div>
                 {opponents.map(opp => (
                    <BigStatRow key={opp.id} label={`Da: ${opp.name}`} value={player.cmdDmg[opp.id]} onSub={() => updateStat(player.id, 'cmdDmg', -1, opp.id)} onAdd={() => updateStat(player.id, 'cmdDmg', 1, opp.id)} />
                 ))}
-                <h3 className="text-white font-black text-lg mt-2 mb-2 text-center border-b border-gray-700 pb-1">Stato</h3>
+                <h3 className="text-white font-black text-lg mt-2 mb-2 text-center border-b border-gray-700 pb-1">Stato Giocatore</h3>
                 <BigStatRow label="💧 Veleno" value={player.poison} onSub={() => updateStat(player.id, 'poison', -1)} onAdd={() => updateStat(player.id, 'poison', 1)} />
                 <BigStatRow label="⚔️ Lanci Cmdr" value={player.cmdCasts} onSub={() => updateStat(player.id, 'cmdCasts', -1)} onAdd={() => updateStat(player.id, 'cmdCasts', 1)} />
                 <BigStatRow label="🛡️ Emblemi" value={player.emblems} onSub={() => updateStat(player.id, 'emblems', -1)} onAdd={() => updateStat(player.id, 'emblems', 1)} />
@@ -1549,10 +1734,10 @@
 
           {/* OVERLAY CERCA COMANDANTE */}
           {viewMode === 'search' && (
-             <div className="absolute inset-0 bg-gray-900/95 backdrop-blur-md z-40 flex flex-col p-3 animate-fade">
+             <div className="absolute inset-0 top-[20%] bg-gray-900/95 backdrop-blur-md z-40 flex flex-col p-3 animate-fade border-t border-gray-600">
                 <div className="flex justify-between items-center mb-3 border-b border-gray-700 pb-2">
                    <h3 className="text-white font-bold text-lg">Cerca Sfondo Cmdr</h3>
-                   <button onClick={()=>setViewMode('stats')} className="bg-gray-600 px-3 py-1 rounded text-white font-bold">Indietro</button>
+                   <button onClick={()=>setViewMode('stats')} className="bg-gray-600 px-3 py-1 rounded text-white font-bold shadow-lg">Indietro</button>
                 </div>
                 <div className="flex gap-2 mb-3">
                    <input autoFocus type="text" placeholder="Es. Y'shtola" value={cmdQuery} onChange={e=>setCmdQuery(e.target.value)} onKeyDown={e=>e.key==='Enter'&&eseguiRicercaCmd()} className="flex-1 bg-gray-800 border border-gray-600 text-white rounded p-2 outline-none font-bold" />
@@ -1569,7 +1754,11 @@
 
           {/* OVERLAY MANA */}
           {viewMode === 'mana' && (
-             <div className="absolute inset-0 bg-gray-900/90 backdrop-blur-sm z-40 flex flex-col p-3 animate-fade">
+             <div className="absolute inset-0 top-[20%] bg-gray-900/95 backdrop-blur-md z-40 flex flex-col p-3 animate-fade border-t border-gray-600">
+                <div className="flex justify-between items-center mb-2 border-b border-gray-700 pb-1">
+                    <h3 className="text-white font-black text-lg">Mana Pool</h3>
+                    <button onClick={() => setViewMode('life')} className="bg-blue-600 px-3 py-1 rounded text-white font-bold text-xs shadow-lg">Chiudi</button>
+                </div>
                 <div className="flex-1 grid grid-cols-3 gap-2 overflow-y-auto mb-2">
                    {ManaColors.map(m => (
                       <div key={m.id} className="bg-gray-800 rounded-xl border border-gray-700 flex flex-col items-center justify-center py-2">
