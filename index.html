@@ -1702,7 +1702,7 @@
       );
     };
 
-// --- DATABASE & SCAN CARTE (PARTE 4) ---
+// --- DATABASE & SCAN CARTE (PARTE 4 AGGIORNATA CON OCR POTENZIATO) ---
     const CardSearchExplorer = ({navigate}) => {
       const [query, setQuery] = useState("");
       const [oracleText, setOracleText] = useState("");
@@ -1769,24 +1769,73 @@
         eseguiRicerca(`https://api.scryfall.com/cards/search?q=${encodeURIComponent(searchQuery.trim())}`, true);
       };
 
+      // NUOVO MOTORE SCAN POTENZIATO
       const handleScan = async (e) => {
          const file = e.target.files[0]; if(!file) return;
          if(typeof Tesseract === 'undefined') return alert("Il motore OCR sta ancora caricando, riprova tra qualche secondo.");
          
-         setIsScanning(true); setScanProgress("Analizzo l'immagine...");
+         setIsScanning(true); setScanProgress("Ottimizzo l'immagine...");
+         
          try {
-            const result = await Tesseract.recognize(file, 'eng', {
-               logger: m => { if(m.status === 'recognizing text') setScanProgress(`Scansione: ${Math.round(m.progress * 100)}%`); }
+            // PRE-ELABORAZIONE: Canvas per contrasto e bianco/nero
+            const processedImgSrc = await new Promise((resolve) => {
+               const img = new Image();
+               img.onload = () => {
+                  const canvas = document.createElement('canvas');
+                  // Limito la grandezza per non fondere la CPU del telefono
+                  const maxDim = 1000;
+                  let w = img.width; let h = img.height;
+                  if (w > maxDim || h > maxDim) {
+                      if (w > h) { h = (maxDim / w) * h; w = maxDim; }
+                      else { w = (maxDim / h) * w; h = maxDim; }
+                  }
+                  canvas.width = w; canvas.height = h;
+                  const ctx = canvas.getContext('2d');
+                  // Magia nera: scala di grigi e contrasto altissimo
+                  ctx.filter = 'grayscale(100%) contrast(300%) brightness(120%)';
+                  ctx.drawImage(img, 0, 0, w, h);
+                  resolve(canvas.toDataURL('image/jpeg', 0.9));
+               };
+               img.src = URL.createObjectURL(file);
             });
-            // Prendo la prima linea consistente di testo trovata (generalmente il titolo della carta)
+
+            setScanProgress("Estraggo il testo...");
+            const result = await Tesseract.recognize(processedImgSrc, 'eng', {
+               logger: m => { if(m.status === 'recognizing text') setScanProgress(`Scansione OCR: ${Math.round(m.progress * 100)}%`); }
+            });
+            
+            // Pulizia del testo e Fuzzy Search
             const textLines = result.data.text.split('\n').map(l => l.trim()).filter(l => l.length > 2);
             if(textLines.length > 0) {
-                const possibleName = textLines[0].replace(/[^a-zA-Z\s,'-]/g, ''); 
+                // Prendiamo le prime due righe ripulite da simboli strani
+                let possibleName = textLines.slice(0, 2).join(' ').replace(/[^a-zA-Z\s,'-]/g, '').replace(/\s+/g, ' ').trim();
                 setQuery(possibleName);
-                setScanProgress("Trovato! Ricerca in corso...");
+                setScanProgress(`Cerco: "${possibleName}"...`);
+                
+                // Ricerca Elastica (Fuzzy) per perdonare gli errori OCR
+                try {
+                    const fuzzyRes = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(possibleName)}`);
+                    const fuzzyData = await fuzzyRes.json();
+                    if (fuzzyData.id) {
+                        let img = ""; let imgBack = null; let oracle_text = fuzzyData.oracle_text || ""; let mana_cost = fuzzyData.mana_cost || "";
+                        if (fuzzyData.image_uris && fuzzyData.image_uris.normal) { img = fuzzyData.image_uris.normal; } 
+                        else if (fuzzyData.card_faces && fuzzyData.card_faces.length > 0) {
+                            if (fuzzyData.card_faces[0].image_uris && fuzzyData.card_faces[0].image_uris.normal) img = fuzzyData.card_faces[0].image_uris.normal;
+                            if (fuzzyData.card_faces.length > 1 && fuzzyData.card_faces[1].image_uris && fuzzyData.card_faces[1].image_uris.normal) imgBack = fuzzyData.card_faces[1].image_uris.normal;
+                            if (!oracle_text) oracle_text = fuzzyData.card_faces.map(f=>f.oracle_text).join(' ');
+                            if (!mana_cost) mana_cost = fuzzyData.card_faces[0].mana_cost;
+                        }
+                        const finalCard = { id: fuzzyData.id, name: fuzzyData.name, image: img, imageBack: imgBack, type: fuzzyData.type_line || "", cmc: fuzzyData.cmc || 0, colors: fuzzyData.color_identity || [], legalities: fuzzyData.legalities || {}, printsUrl: fuzzyData.prints_search_uri || null, oracle_text: oracle_text, mana_cost: mana_cost };
+                        
+                        setAllResults([finalCard]); setLocalPage(0); setNextScryfallUrl(null);
+                        setScanProgress(""); setIsScanning(false); return;
+                    }
+                } catch(e) {}
+                
+                // Se la Fuzzy fallisce, fallback alla ricerca normale
                 searchCard(possibleName);
             } else {
-                alert("Testo non rilevato. Cerca di inquadrare bene il titolo in cima alla carta con molta luce!");
+                alert("Testo non rilevato. Cerca di inquadrare bene il titolo in cima alla carta (o rimuovi la bustina se fa riflesso)!");
             }
          } catch(err) { console.error(err); alert("Errore OCR."); }
          setIsScanning(false); setScanProgress("");
