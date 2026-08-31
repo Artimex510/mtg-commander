@@ -104,7 +104,18 @@
     const categoriesOrder = ["Comandante", "Companion", "Creature", "Planeswalker", "Istantanei", "Stregonerie", "Artefatti", "Incantesimi", "Terre", "Altro", "Sideboard"];
 
     const buildCardKey = (c) => c.name + (c.isCustom ? c.proxyImage : "") + c.id + !!c.isSideboard + !!c.isCommander + !!c.isCompanion;
-
+    const addToCart = (type, item) => {
+        let cart = JSON.parse(localStorage.getItem('mtg_cart') || '{"singles":[], "decks":[]}');
+        if (type === 'single') {
+            cart.singles.push(item);
+            alert(`${item.name} aggiunto al Carrello!`);
+        } else {
+            cart.decks.push(item);
+            alert(`Mazzo "${item.name}" aggiunto al Carrello!`);
+        }
+        localStorage.setItem('mtg_cart', JSON.stringify(cart));
+    };
+    
     function App() {
       const [introState, setIntroState] = useState('initial');
       const [currentUser, setCurrentUser] = useState(null);
@@ -216,6 +227,7 @@
                       <MenuBtn icon="🔍" text="Database & Scan" onClick={() => navigate('cardsearch')} />
                       <MenuBtn icon="🎴" text="Deckbuilding" onClick={() => navigate('deckbuilder')} />
                       <MenuBtn icon="📚" text="I Miei Mazzi" onClick={() => navigate('mydecks')} />
+                      <MenuBtn icon="🛒" text="Carrello" onClick={() => navigate('cart')} />
                       <MenuBtn icon="🃏" text="Testa Mazzo" onClick={() => navigate('playtester')} />
                       <MenuBtn icon="✨" text="Proxy Creator" onClick={() => navigate('proxycreator')} />
                       <MenuBtn icon="🖼️" text="Le Mie Proxy" onClick={() => navigate('myproxies')} />
@@ -245,6 +257,7 @@
                 {view === 'cardsearch' && <CardSearchExplorer navigate={navigate} />}
                 
                 {view === 'mydecks' && <MyDecks navigate={navigate} />}
+                {view === 'cart' && <CartView navigate={navigate} />}
                 {view === 'myproxies' && <MyProxies navigate={navigate} />}
                 {view === 'viewdeck' && <DeckViewer deck={activeDeck} navigate={navigate} />}
                 {view === 'analysis' && <DeckAnalysis deck={activeDeck} navigate={navigate} />}
@@ -284,6 +297,83 @@
       </div>
     );
 
+    const CartView = ({navigate}) => {
+      const [cart, setCart] = useState({singles: [], decks: []});
+      const [tab, setTab] = useState('singles');
+
+      useEffect(() => { setCart(JSON.parse(localStorage.getItem('mtg_cart') || '{"singles":[], "decks":[]}')); }, []);
+
+      const remove = (type, index) => {
+         let newCart = {...cart}; newCart[type].splice(index, 1);
+         setCart(newCart); localStorage.setItem('mtg_cart', JSON.stringify(newCart));
+      };
+
+      const checkoutSingles = () => {
+         if(cart.singles.length === 0) return alert("Carrello vuoto!");
+         const list = cart.singles.map(c => `1 ${c.name}`).join('\n');
+         navigator.clipboard.writeText(list);
+         alert("Lista copiata negli appunti!\nTi sto portando su CardTrader per l'acquisto automatico...");
+         window.open("https://www.cardtrader.com/it/mass_imports?share_code=IL_TUO_TOKEN_FUTURO", "_blank");
+      };
+
+      const checkoutDeck = (deck) => {
+         const list = deck.cards.map(c => `1 ${c.name}`).join('\n');
+         navigator.clipboard.writeText(list);
+         alert(`Lista del mazzo "${deck.name}" copiata!\nTi sto portando su CardTrader...`);
+         window.open("https://www.cardtrader.com/it/mass_imports?share_code=IL_TUO_TOKEN_FUTURO", "_blank");
+      };
+
+      return (
+        <div className="max-w-md mx-auto bg-gray-800/90 p-6 rounded-xl shadow-lg border border-gray-600 mt-4 backdrop-blur-sm animate-fade">
+          <h2 className="text-3xl font-black text-center text-yellow-500 drop-shadow-md mb-6">🛒 Carrello</h2>
+          
+          <div className="flex gap-2 mb-6">
+             <button onClick={()=>setTab('singles')} className={`flex-1 font-black py-2 rounded-lg transition-colors ${tab==='singles'?'bg-yellow-600 text-white shadow-lg':'bg-gray-700 text-gray-400'}`}>Carte Singole ({cart.singles.length})</button>
+             <button onClick={()=>setTab('decks')} className={`flex-1 font-black py-2 rounded-lg transition-colors ${tab==='decks'?'bg-yellow-600 text-white shadow-lg':'bg-gray-700 text-gray-400'}`}>Mazzi Interi ({cart.decks.length})</button>
+          </div>
+
+          {tab === 'singles' && (
+             <div className="space-y-4 animate-fade">
+                {cart.singles.length === 0 ? <p className="text-center text-gray-400 font-bold">Nessuna carta singola.</p> : (
+                   <>
+                     <div className="bg-gray-900 p-2 rounded-lg border border-gray-700 max-h-64 overflow-y-auto space-y-2">
+                        {cart.singles.map((c, i) => (
+                           <div key={i} className="flex justify-between items-center bg-gray-800 p-2 rounded shadow">
+                              <span className="font-bold text-sm text-white truncate w-2/3">{c.name}</span>
+                              <div className="flex items-center gap-3">
+                                 <span className="text-yellow-400 font-black text-sm">{c.prices?.eur ? `€${c.prices.eur}` : 'N/D'}</span>
+                                 <button onClick={()=>remove('singles', i)} className="text-red-500 font-black text-lg w-6 h-6 flex items-center justify-center bg-red-900/30 rounded">✖</button>
+                              </div>
+                           </div>
+                        ))}
+                     </div>
+                     <button onClick={checkoutSingles} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl shadow-[0_0_15px_rgba(37,99,235,0.4)] transition-all">ACQUISTA SINGOLE SU CARDTRADER</button>
+                   </>
+                )}
+             </div>
+          )}
+
+          {tab === 'decks' && (
+             <div className="space-y-4 animate-fade">
+                {cart.decks.length === 0 ? <p className="text-center text-gray-400 font-bold">Nessun mazzo nel carrello.</p> : (
+                   <div className="space-y-4">
+                      {cart.decks.map((d, i) => (
+                         <div key={i} className="bg-gray-900 p-3 rounded-xl border border-gray-700 shadow-inner">
+                            <div className="flex justify-between items-center mb-3">
+                               <h3 className="font-black text-white text-lg truncate w-3/4">{d.name}</h3>
+                               <button onClick={()=>remove('decks', i)} className="text-red-500 font-black text-lg bg-red-900/30 px-3 py-1 rounded">✖</button>
+                            </div>
+                            <button onClick={()=>checkoutDeck(d)} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-lg shadow transition-all">ACQUISTA MAZZO SU CARDTRADER</button>
+                         </div>
+                      ))}
+                   </div>
+                )}
+             </div>
+          )}
+        </div>
+      );
+    };
+    
     const ActionCard = ({icon, text, onClick, color}) => (
       <button onClick={onClick} className={`${color} p-6 rounded-xl flex flex-col items-center justify-center border border-gray-600 shadow-xl active:scale-95 transition-all backdrop-blur-md`}>
         <div className="text-4xl mb-2 drop-shadow-md">{icon}</div>
