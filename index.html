@@ -15,6 +15,10 @@
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
   <!-- LIBRERIA OCR AGGIUNTA PER LO SCAN CARTE -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+  <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
   
   <style>
     body { -webkit-font-smoothing: antialiased; overflow-x: hidden; user-select: none; -webkit-touch-callout: none; background-color: #000; }
@@ -39,6 +43,34 @@
 
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBKfSnZ7ujw5uYZ_RnlM034exD28jfMunQ",
+      authDomain: "mtg-for-fun-bf36b.firebaseapp.com",
+      projectId: "mtg-for-fun-bf36b",
+      storageBucket: "mtg-for-fun-bf36b.firebasestorage.app",
+      messagingSenderId: "742946721330",
+      appId: "1:742946721330:web:3cb566ddd6c8b9ada7362b"
+    };
+    
+    if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    const syncToCloud = async (uid) => {
+      const decks = JSON.parse(localStorage.getItem('mtg_decks') || '[]');
+      await db.collection('users').doc(uid).set({ decks, lastSync: new Date().toISOString() });
+    };
+
+    const syncFromCloud = async (uid) => {
+      const doc = await db.collection('users').doc(uid).get();
+      if(doc.exists) {
+        const data = doc.data();
+        if(data.decks) localStorage.setItem('mtg_decks', JSON.stringify(data.decks));
+        return true;
+      }
+      return false;
+    };
 
     const Icons = {
       Menu: () => <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16"/></svg>,
@@ -74,7 +106,15 @@
     const buildCardKey = (c) => c.name + (c.isCustom ? c.proxyImage : "") + c.id + !!c.isSideboard + !!c.isCommander + !!c.isCompanion;
 
     function App() {
-      const [introState, setIntroState] = useState('initial'); 
+      const [introState, setIntroState] = useState('initial');
+      const [currentUser, setCurrentUser] = useState(null);
+
+      useEffect(() => {
+        const unsubscribe = auth.onAuthStateChanged(u => {
+          setCurrentUser(u);
+        });
+        return () => unsubscribe();
+      }, []);
       const videoRef = useRef(null);
       const [view, setView] = useState('home');
       const [menuOpen, setMenuOpen] = useState(false);
@@ -233,44 +273,100 @@
     );
 
     const BackupView = ({navigate}) => {
-      const exportData = () => {
-         const data = { decks: JSON.parse(localStorage.getItem('mtg_decks') || '[]'), proxies: JSON.parse(localStorage.getItem('mtg_proxies') || '[]') };
-         const blob = new Blob([JSON.stringify(data)], {type: "application/json"});
-         const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `MTG_Companion_Backup_${new Date().toISOString().split('T')[0]}.json`; a.click();
+      const [email, setEmail] = useState("");
+      const [password, setPassword] = useState("");
+      const [loading, setLoading] = useState(false);
+      const user = auth.currentUser; 
+
+      const handleAuth = async (isSignUp) => {
+        if(!email || password.length < 6) return alert("Inserisci un'email valida e una password di almeno 6 caratteri.");
+        setLoading(true);
+        try {
+          if(isSignUp) {
+            await auth.createUserWithEmailAndPassword(email, password);
+            alert("Account creato con successo!");
+          } else {
+            await auth.signInWithEmailAndPassword(email, password);
+            alert("Bentornato!");
+          }
+        } catch(err) { alert("Errore: " + err.message); }
+        setLoading(false);
       };
-      const importData = (e) => {
-         const file = e.target.files[0]; if(!file) return; const reader = new FileReader();
-         reader.onload = (event) => {
-             try {
-                 const data = JSON.parse(event.target.result);
-                 if(data.decks) localStorage.setItem('mtg_decks', JSON.stringify(data.decks));
-                 if(data.proxies) localStorage.setItem('mtg_proxies', JSON.stringify(data.proxies));
-                 alert("Dati Ripristinati con successo! Ora hai tutti i mazzi."); navigate('mydecks');
-             } catch(err) { alert("Errore: Il file di backup sembra corrotto."); }
-         };
-         reader.readAsText(file);
+
+      const handleGoogleLogin = async () => {
+        setLoading(true);
+        try {
+          const provider = new firebase.auth.GoogleAuthProvider();
+          await auth.signInWithPopup(provider);
+          alert("Accesso con Google completato!");
+        } catch(err) { alert("Errore Google Login: " + err.message); }
+        setLoading(false);
+      };
+
+      const forceSyncUp = async () => {
+        if(!user) return;
+        setLoading(true);
+        try {
+          await syncToCloud(user.uid);
+          alert("Mazzi salvati nel Cloud con successo!");
+        } catch(err) { alert("Errore durante il salvataggio sul Cloud."); }
+        setLoading(false);
+      };
+
+      const forceSyncDown = async () => {
+        if(!user) return;
+        if(!confirm("ATTENZIONE: Stai per sovrascrivere i mazzi di questo dispositivo con quelli del Cloud. Procedere?")) return;
+        setLoading(true);
+        try {
+          const success = await syncFromCloud(user.uid);
+          if(success) alert("Mazzi ripristinati dal Cloud!");
+          else alert("Nessun mazzo trovato sul Cloud per questo account.");
+        } catch(err) { alert("Errore durante il ripristino."); }
+        setLoading(false);
       };
 
       return (
-         <div className="max-w-md mx-auto bg-gray-800/90 p-6 rounded-xl shadow-lg border border-gray-600 mt-4 backdrop-blur-sm space-y-6">
-           <h2 className="text-3xl font-black text-center text-blue-400 drop-shadow-md">Backup & Sync</h2>
-           <p className="text-gray-300 text-sm font-semibold text-center leading-snug">Usa questa funzione per passare istantaneamente tutti i tuoi mazzi e le tue proxy dal Telefono al PC, o viceversa.</p>
-           <div className="bg-gray-900 p-4 rounded-xl border border-gray-700 shadow-inner">
-              <h3 className="text-white font-bold mb-2 flex items-center gap-2">1. Esporta Dati</h3>
-              <p className="text-xs text-gray-400 mb-4">Salva l'intero database sul tuo dispositivo. Invia questo file su Google Drive, Telegram o Email.</p>
-              <button onClick={exportData} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl shadow-[0_0_15px_rgba(37,99,235,0.4)] transition-colors">
-                 💾 SCARICA BACKUP (.json)
+        <div className="max-w-md mx-auto bg-gray-800/90 p-6 rounded-xl shadow-lg border border-gray-600 mt-4 backdrop-blur-sm space-y-6 animate-fade">
+          <h2 className="text-3xl font-black text-center text-blue-400 drop-shadow-md">Cloud Sync</h2>
+          <p className="text-gray-300 text-sm font-semibold text-center leading-snug">
+            L'app salva tutto automaticamente offline in locale. Usa questa cassaforte per fare il backup dei tuoi mazzi online.
+          </p>
+          
+          {!user ? (
+            <div className="bg-gray-900 p-4 rounded-xl border border-gray-700 shadow-inner space-y-3">
+              <button onClick={handleGoogleLogin} disabled={loading} className="w-full bg-white hover:bg-gray-100 text-black font-black py-3 rounded-lg shadow flex items-center justify-center gap-2 transition-colors mb-4">
+                <svg className="w-5 h-5" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                Accedi con Google
               </button>
-           </div>
-           <div className="bg-gray-900 p-4 rounded-xl border border-gray-700 shadow-inner">
-              <h3 className="text-white font-bold mb-2 flex items-center gap-2">2. Importa Dati</h3>
-              <p className="text-xs text-red-400 mb-4 font-bold">⚠️ ATTENZIONE: Caricando un file, sovrascriverai i mazzi attuali su questo dispositivo con quelli del backup.</p>
-              <label className="block w-full bg-green-600 hover:bg-green-500 text-center py-4 rounded-xl cursor-pointer font-black text-white shadow-[0_0_15px_rgba(22,163,74,0.4)] transition-colors">
-                 📂 CARICA BACKUP (.json)
-                 <input type="file" accept=".json" className="hidden" onChange={importData} />
-              </label>
-           </div>
-         </div>
+              
+              <div className="flex items-center gap-2 mb-4">
+                <div className="h-px bg-gray-700 flex-1"></div><span className="text-gray-500 text-xs font-bold uppercase">Oppure</span><div className="h-px bg-gray-700 flex-1"></div>
+              </div>
+
+              <input type="email" placeholder="La tua Email" value={email} onChange={e=>setEmail(e.target.value)} className="w-full bg-gray-800 border border-gray-600 rounded p-3 text-white font-bold outline-none" />
+              <input type="password" placeholder="Password (min 6 car.)" value={password} onChange={e=>setPassword(e.target.value)} className="w-full bg-gray-800 border border-gray-600 rounded p-3 text-white font-bold outline-none" />
+              <div className="flex gap-2 pt-2">
+                <button onClick={()=>handleAuth(false)} disabled={loading} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-lg shadow transition-colors">ACCEDI</button>
+                <button onClick={()=>handleAuth(true)} disabled={loading} className="flex-1 bg-gray-600 hover:bg-gray-500 text-white font-black py-3 rounded-lg shadow transition-colors">REGISTRATI</button>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-gray-900 p-4 rounded-xl border border-gray-700 shadow-inner text-center">
+              <p className="text-sm text-green-400 font-bold mb-1">🟢 Connesso come</p>
+              <p className="text-white font-black truncate mb-6 text-lg">{user.email || user.displayName || "Utente Google"}</p>
+              
+              <div className="space-y-4">
+                <button onClick={forceSyncUp} disabled={loading} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl shadow-[0_0_15px_rgba(37,99,235,0.4)] transition-all">
+                  ☁️ SALVA MAZZI NEL CLOUD
+                </button>
+                <button onClick={forceSyncDown} disabled={loading} className="w-full bg-green-600 hover:bg-green-500 text-white font-black py-4 rounded-xl shadow-[0_0_15px_rgba(22,163,74,0.4)] transition-all">
+                  📥 RECUPERA MAZZI DAL CLOUD
+                </button>
+                <button onClick={() => auth.signOut()} className="w-full bg-red-800 hover:bg-red-700 text-white font-bold py-2 rounded-lg mt-4 transition-colors">Disconnetti Account</button>
+              </div>
+            </div>
+          )}
+        </div>
       );
     };
 
