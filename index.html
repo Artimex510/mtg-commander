@@ -740,7 +740,7 @@
                          if (!oracle_text) oracle_text = c.card_faces.map(f=>f.oracle_text).join(' ');
                          if (!mana_cost) mana_cost = c.card_faces[0].mana_cost;
                      }
-                     return { id: c.id || Math.random().toString(), name: c.name || "Sconosciuta", image: img, imageBack: imgBack, type: c.type_line || "", cmc: c.cmc || 0, colors: c.color_identity || [], legalities: c.legalities || {}, printsUrl: c.prints_search_uri || null, isCommander: false, isCompanion: false, oracle_text: oracle_text, mana_cost: mana_cost };
+                     return { id: c.id || Math.random().toString(), name: c.name || "Sconosciuta", image: img, imageBack: imgBack, type: c.type_line || "", cmc: c.cmc || 0, colors: c.color_identity || [], legalities: c.legalities || {}, printsUrl: c.prints_search_uri || null, isCommander: false, isCompanion: false, oracle_text: oracle_text, mana_cost: mana_cost, prices: c.prices || {} };
                    });
                    if(isNewSearch) { setAllResults(cards); setLocalPage(0); } else { setAllResults(prev => [...prev, ...cards]); }
                    setNextScryfallUrl(data.has_more ? data.next_page : null);
@@ -1447,6 +1447,7 @@
                         <button onClick={() => exportText(d)} className="bg-gray-700 hover:bg-gray-600 text-white rounded py-1 shadow transition-colors">Esporta</button>
                         <button onClick={() => deleteDeck(d.id)} className="bg-red-800 hover:bg-red-700 text-white rounded py-1 shadow transition-colors">Elimina</button>
                      </div>
+                  <button onClick={() => addToCart('deck', d)} className="w-full mt-1 bg-yellow-600 hover:bg-yellow-500 text-white font-bold rounded py-1 shadow transition-colors">🛒 Carrello</button>
                    </div>
                 </div>
               );
@@ -2144,7 +2145,7 @@
                      if (!oracle_text) oracle_text = c.card_faces.map(f=>f.oracle_text).join(' ');
                      if (!mana_cost) mana_cost = c.card_faces[0].mana_cost;
                  }
-                 return { id: c.id, name: c.name, image: img, imageBack: imgBack, type: c.type_line || "", cmc: c.cmc || 0, colors: c.color_identity || [], legalities: c.legalities || {}, printsUrl: c.prints_search_uri || null, oracle_text: oracle_text, mana_cost: mana_cost };
+                 return { id: c.id, name: c.name, image: img, imageBack: imgBack, type: c.type_line || "", cmc: c.cmc || 0, colors: c.color_identity || [], legalities: c.legalities || {}, printsUrl: c.prints_search_uri || null, oracle_text: oracle_text, mana_cost: mana_cost, prices: c.prices || {} };
                });
                if(isNewSearch) { setAllResults(cards); setLocalPage(0); } else { setAllResults(prev => [...prev, ...cards]); }
                setNextScryfallUrl(data.has_more ? data.next_page : null);
@@ -2313,6 +2314,13 @@
                  {(itaImgBack || viewingCard.imageBack) && (
                     <button onClick={() => setShowBack(!showBack)} className="w-full max-w-sm bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 rounded-lg shadow-md border border-gray-500 mb-4 transition-colors">🔄 {showBack ? "Vedi Fronte" : "Vedi Retro"}</button>
                  )}
+                 <div className="w-full max-w-sm bg-gray-900 p-3 rounded-xl border border-gray-700 flex justify-between items-center mb-4 shadow-inner">
+                    <div className="flex flex-col">
+                       <span className="text-gray-400 text-[10px] font-bold uppercase">Prezzo Scryfall</span>
+                       <span className="text-yellow-400 font-black text-lg">{viewingCard.prices?.eur ? `€ ${viewingCard.prices.eur}` : (viewingCard.prices?.usd ? `$ ${viewingCard.prices.usd}` : "N/D")}</span>
+                    </div>
+                    <button onClick={() => addToCart('single', viewingCard)} className="bg-yellow-600 hover:bg-yellow-500 text-white font-black px-4 py-2 rounded-lg shadow flex items-center gap-2 active:scale-95">🛒 AGGIUNGI</button>
+                 </div>
                  <div className="w-full max-w-sm mb-4 flex gap-2">
                     <button onClick={() => translateCard(viewingCard)} disabled={translating} className="flex-1 bg-indigo-700 hover:bg-indigo-600 text-white font-bold py-3 rounded-xl shadow-[0_0_15px_rgba(67,56,202,0.4)] border border-indigo-500 transition-all text-xs">
                       {translating ? "Traduco..." : (showIta ? "🇬🇧 Torna in Inglese" : "🇮🇹 Traduci")}
