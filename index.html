@@ -110,10 +110,29 @@
       const [currentUser, setCurrentUser] = useState(null);
 
       useEffect(() => {
-        const unsubscribe = auth.onAuthStateChanged(u => {
+        let unsubscribeSnapshot = null;
+        const unsubscribeAuth = auth.onAuthStateChanged(u => {
           setCurrentUser(u);
+          if (u) {
+            // Sincronizzazione in Tempo Reale
+            unsubscribeSnapshot = db.collection('users').doc(u.uid).onSnapshot(doc => {
+              if (doc.exists) {
+                const data = doc.data();
+                if (data.decks) {
+                   localStorage.setItem('mtg_decks', JSON.stringify(data.decks));
+                   // Avvisa l'app che i dati sono cambiati in background
+                   window.dispatchEvent(new Event("cloud_sync_update"));
+                }
+              }
+            });
+          } else {
+            if (unsubscribeSnapshot) unsubscribeSnapshot();
+          }
         });
-        return () => unsubscribe();
+        return () => {
+          unsubscribeAuth();
+          if (unsubscribeSnapshot) unsubscribeSnapshot();
+        };
       }, []);
       const videoRef = useRef(null);
       const [view, setView] = useState('home');
@@ -1242,8 +1261,12 @@
       const [manaFilter, setManaFilter] = useState([]);
       const [formatFilter, setFormatFilter] = useState("");
       
-      useEffect(() => { setDecks(JSON.parse(localStorage.getItem('mtg_decks') || '[]')); }, []);
-
+      useEffect(() => { 
+        const loadDecks = () => setDecks(JSON.parse(localStorage.getItem('mtg_decks') || '[]'));
+        loadDecks(); // Carica subito
+        window.addEventListener("cloud_sync_update", loadDecks); // Ascolta il cloud
+        return () => window.removeEventListener("cloud_sync_update", loadDecks);
+      }, []);
       const toggleMana = (m) => setManaFilter(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
 
       const deleteDeck = (id) => {
