@@ -341,7 +341,7 @@
                            <div key={i} className="flex justify-between items-center bg-gray-800 p-2 rounded shadow">
                               <span className="font-bold text-sm text-white truncate w-2/3">{c.name}</span>
                               <div className="flex items-center gap-3">
-                                 <span className="text-yellow-400 font-black text-sm">{c.prices?.eur ? `€${c.prices.eur}` : 'N/D'}</span>
+                                 <span className="text-yellow-400 font-black text-sm">{c.prices && c.prices.eur ? `€${c.prices.eur}` : 'N/D'}</span>
                                  <button onClick={()=>remove('singles', i)} className="text-red-500 font-black text-lg w-6 h-6 flex items-center justify-center bg-red-900/30 rounded">✖</button>
                               </div>
                            </div>
@@ -2102,7 +2102,7 @@
       );
     };
 
-// --- DATABASE & SCAN CARTE (PARTE 4 AGGIORNATA CON OCR POTENZIATO) ---
+// --- DATABASE & SCAN CARTE (PARTE 4 AGGIORNATA CON OCR POTENZIATO E PREZZI) ---
     const CardSearchExplorer = ({navigate}) => {
       const [query, setQuery] = useState("");
       const [oracleText, setOracleText] = useState("");
@@ -2225,7 +2225,7 @@
                             if (!oracle_text) oracle_text = fuzzyData.card_faces.map(f=>f.oracle_text).join(' ');
                             if (!mana_cost) mana_cost = fuzzyData.card_faces[0].mana_cost;
                         }
-                        const finalCard = { id: fuzzyData.id, name: fuzzyData.name, image: img, imageBack: imgBack, type: fuzzyData.type_line || "", cmc: fuzzyData.cmc || 0, colors: fuzzyData.color_identity || [], legalities: fuzzyData.legalities || {}, printsUrl: fuzzyData.prints_search_uri || null, oracle_text: oracle_text, mana_cost: mana_cost };
+                        const finalCard = { id: fuzzyData.id, name: fuzzyData.name, image: img, imageBack: imgBack, type: fuzzyData.type_line || "", cmc: fuzzyData.cmc || 0, colors: fuzzyData.color_identity || [], legalities: fuzzyData.legalities || {}, printsUrl: fuzzyData.prints_search_uri || null, oracle_text: oracle_text, mana_cost: mana_cost, prices: fuzzyData.prices || {} };
                         
                         setAllResults([finalCard]); setLocalPage(0); setNextScryfallUrl(null);
                         setScanProgress(""); setIsScanning(false); return;
@@ -2317,7 +2317,7 @@
                  <div className="w-full max-w-sm bg-gray-900 p-3 rounded-xl border border-gray-700 flex justify-between items-center mb-4 shadow-inner">
                     <div className="flex flex-col">
                        <span className="text-gray-400 text-[10px] font-bold uppercase">Prezzo Scryfall</span>
-                       <span className="text-yellow-400 font-black text-lg">{viewingCard.prices?.eur ? `€ ${viewingCard.prices.eur}` : (viewingCard.prices?.usd ? `$ ${viewingCard.prices.usd}` : "N/D")}</span>
+                       <span className="text-yellow-400 font-black text-lg">{(viewingCard.prices && viewingCard.prices.eur) ? `€ ${viewingCard.prices.eur}` : ((viewingCard.prices && viewingCard.prices.usd) ? `$ ${viewingCard.prices.usd}` : "N/D")}</span>
                     </div>
                     <button onClick={() => addToCart('single', viewingCard)} className="bg-yellow-600 hover:bg-yellow-500 text-white font-black px-4 py-2 rounded-lg shadow flex items-center gap-2 active:scale-95">🛒 AGGIUNGI</button>
                  </div>
@@ -2420,7 +2420,7 @@
                     ))}
                   </div>
                 </div>
-              )}
+             )}
           </div>
         </div>
       );
