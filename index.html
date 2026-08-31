@@ -456,6 +456,10 @@
       const handleImage = (e) => { const file = e.target.files[0]; if(file) { const r = new FileReader(); r.onload = (ev) => setCustomImg(ev.target.result); r.readAsDataURL(file); } };
 
       const eseguiSalvataggio = () => {
+        const proxyAttuali = JSON.parse(localStorage.getItem('mtg_proxies') || '[]');
+        if (proxyAttuali.length >= 20) {
+            return alert("Limite raggiunto! Puoi avere al massimo 20 Proxy contemporaneamente. Eliminane qualcuna per crearne di nuove.");
+        }
         if(!baseCard || !customImg) return alert("Carica un'immagine!");
         setIsGenerating(true);
         const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
