@@ -675,6 +675,11 @@
         const newDeckObj = { id: activeDeck ? activeDeck.id : Date.now(), name: deckName, format: deckFormat, cards: deck, rulebreaker: rulebreaker, date: new Date().toLocaleDateString() };
         if(activeDeck) savedDecks = savedDecks.map(d => d.id === activeDeck.id ? newDeckObj : d); else savedDecks.push(newDeckObj);
         localStorage.setItem('mtg_decks', JSON.stringify(savedDecks));
+        
+        if (auth.currentUser) {
+            syncToCloud(auth.currentUser.uid).catch(e => console.error("Errore Cloud:", e));
+        }
+        
         alert("Mazzo Salvato con successo!"); navigate('mydecks');
       };
 
@@ -1246,6 +1251,10 @@
           const newD = decks.filter(d => d.id !== id);
           localStorage.setItem('mtg_decks', JSON.stringify(newD));
           setDecks(newD);
+          
+          if (auth.currentUser) {
+              syncToCloud(auth.currentUser.uid).catch(e => console.error("Errore Cloud:", e));
+          }
         }
       };
 
