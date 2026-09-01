@@ -355,7 +355,7 @@
          const list = Object.keys(counts).map(name => `${counts[name]} ${name}`).join('\n');
          
          navigator.clipboard.writeText(list);
-         alert("Lista copiata negli appunti!\nTi porto su CardTrader: premi su 'Importa Lista' e fai Incolla (Ctrl+V) per trovare tutte le carte.");
+         alert("Lista copiata negli appunti!\nTi porto su CardTrader: clicca su 'Incolla testo' (lo trovi sulla destra) e fai Incolla per caricare le carte.");
          window.open("https://www.cardtrader.com/it/wishlists/new", "_blank");
       };
 
@@ -366,7 +366,7 @@
          const list = Object.keys(counts).map(name => `${counts[name]} ${name}`).join('\n');
          
          navigator.clipboard.writeText(list);
-         alert(`Mazzo "${deck.name}" copiato!\nTi porto su CardTrader: premi su 'Importa Lista' e fai Incolla (Ctrl+V) per caricare tutto.`);
+         alert(`Mazzo "${deck.name}" copiato!\nTi porto su CardTrader: clicca su 'Incolla testo' (lo trovi sulla destra) e fai Incolla per caricare le carte.`);
          window.open("https://www.cardtrader.com/it/wishlists/new", "_blank");
       };
 
