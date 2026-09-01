@@ -348,17 +348,26 @@
 
       const checkoutSingles = () => {
          if(cart.singles.length === 0) return alert("Carrello vuoto!");
-         const list = cart.singles.map(c => `1 ${c.name}`).join('\n');
+         
+         // Raggruppiamo le carte uguali per fare una lista pulita (es. "4 Brainstorm")
+         const counts = {};
+         cart.singles.forEach(c => { counts[c.name] = (counts[c.name] || 0) + 1; });
+         const list = Object.keys(counts).map(name => `${counts[name]} ${name}`).join('\n');
+         
          navigator.clipboard.writeText(list);
-         alert("Lista copiata negli appunti!\nTi sto portando su CardTrader per l'acquisto automatico...");
-         window.open("https://www.cardtrader.com/it/mass_imports?share_code=MATTEO", "_blank");
+         alert("Lista copiata negli appunti!\nTi porto su CardTrader: premi su 'Importa Lista' e fai Incolla (Ctrl+V) per trovare tutte le carte.");
+         window.open("https://www.cardtrader.com/it/wishlists/new", "_blank");
       };
 
       const checkoutDeck = (deck) => {
-         const list = deck.cards.map(c => `1 ${c.name}`).join('\n');
+         // Stesso raggruppamento pulito anche per i mazzi interi
+         const counts = {};
+         deck.cards.forEach(c => { counts[c.name] = (counts[c.name] || 0) + 1; });
+         const list = Object.keys(counts).map(name => `${counts[name]} ${name}`).join('\n');
+         
          navigator.clipboard.writeText(list);
-         alert(`Lista del mazzo "${deck.name}" copiata!\nTi sto portando su CardTrader...`);
-         window.open("https://www.cardtrader.com/it/mass_imports?share_code=MATTEO", "_blank");
+         alert(`Mazzo "${deck.name}" copiato!\nTi porto su CardTrader: premi su 'Importa Lista' e fai Incolla (Ctrl+V) per caricare tutto.`);
+         window.open("https://www.cardtrader.com/it/wishlists/new", "_blank");
       };
 
       return (
