@@ -1350,10 +1350,11 @@
       
       useEffect(() => { 
         const loadDecks = () => setDecks(JSON.parse(localStorage.getItem('mtg_decks') || '[]'));
-        loadDecks(); // Carica subito
-        window.addEventListener("cloud_sync_update", loadDecks); // Ascolta il cloud
+        loadDecks();
+        window.addEventListener("cloud_sync_update", loadDecks);
         return () => window.removeEventListener("cloud_sync_update", loadDecks);
       }, []);
+      
       const toggleMana = (m) => setManaFilter(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
 
       const deleteDeck = (id) => {
@@ -1361,7 +1362,6 @@
           const newD = decks.filter(d => d.id !== id);
           localStorage.setItem('mtg_decks', JSON.stringify(newD));
           setDecks(newD);
-          
           if (auth.currentUser) {
               syncToCloud(auth.currentUser.uid).catch(e => console.error("Errore Cloud:", e));
           }
@@ -1383,7 +1383,7 @@
          let colorMatch = true;
          if (manaFilter.length > 0) {
              const deckColors = new Set();
-             const cardsToCheck = cmds.length > 0 ? cmds : d.cards; // Se non c'è comandante, cerca nei colori del mazzo intero
+             const cardsToCheck = cmds.length > 0 ? cmds : d.cards;
              cardsToCheck.forEach(c => { if(c.colors) c.colors.forEach(col => deckColors.add(col)); });
              colorMatch = manaFilter.every(m => deckColors.has(m));
          }
@@ -1440,7 +1440,7 @@
                         <button onClick={() => exportText(d)} className="bg-gray-700 hover:bg-gray-600 text-white rounded py-1 shadow transition-colors">Esporta</button>
                         <button onClick={() => deleteDeck(d.id)} className="bg-red-800 hover:bg-red-700 text-white rounded py-1 shadow transition-colors">Elimina</button>
                      </div>
-                  <button onClick={() => addToCart('deck', d)} className="w-full mt-1 bg-yellow-600 hover:bg-yellow-500 text-white font-bold rounded py-1 shadow transition-colors">🛒 Carrello</button>
+                     <button onClick={() => addToCart('deck', d)} className="w-full mt-1 bg-yellow-600 hover:bg-yellow-500 text-white font-bold rounded py-1 shadow transition-colors">🛒 Carrello</button>
                    </div>
                 </div>
               );
@@ -1453,7 +1453,6 @@
     // --- DECK ANALYSIS E CONDIVISIONE ---
     const DeckAnalysis = ({deck, navigate}) => {
       const [showQR, setShowQR] = useState(false);
-
       if(!deck) return null;
 
       const cmds = deck.cards.filter(c => c.isCommander);
@@ -1620,7 +1619,7 @@
       </div>
     );
 
-    // --- GAME UTILITY (LIFE TRACKER REVISONATO: FULL SCREEN E SEGNALINI) ---
+    // --- GAME UTILITY (LIFE TRACKER) ---
     const GameUtility = ({view, setView}) => {
       const [setup, setSetup] = useState(true);
       const [numPlayers, setNumPlayers] = useState(4);
@@ -1631,7 +1630,6 @@
         let newPlayers = [];
         for(let i=1; i<=numPlayers; i++) {
           let cmdDmg = {}; for(let j=1; j<=numPlayers; j++) { if(i!==j) cmdDmg[`P${j}`] = 0; }
-          // Aggiunti nel setup i nuovi segnalini (rad, energy, exp, ticket) e status (monarch, initiative, blessing, dayNight)
           newPlayers.push({ 
              id: `P${i}`, name: `Player ${i}`, life: startLife, poison: 0, cmdCasts: 0, emblems: 0, immune: false, cmdDmg: cmdDmg, bgUrl: null, mana: {W:0, U:0, B:0, R:0, G:0, C:0},
              rad: 0, energy: 0, exp: 0, ticket: 0, monarch: false, initiative: false, blessing: false, dayNight: 'none'
@@ -1726,7 +1724,6 @@
 
       const saveName = () => { setIsEditingName(false); if(tempName.trim() !== "") updatePlayerConfig(player.id, 'name', tempName.trim()); else setTempName(player.name); };
 
-      // Intestazione Player (nome centrato e badge dei segnalini)
       const PlayerHeader = () => (
          <div className="relative flex justify-center items-center bg-black/50 p-2 z-30 border-b border-gray-700 h-[25%] min-h-[50px]">
             <div className="flex flex-col items-center justify-center overflow-hidden z-20 w-3/4">
@@ -1770,7 +1767,6 @@
             <button onClick={() => updateStat(player.id, 'life', 1)} className="w-1/4 h-full flex items-center justify-center text-6xl font-bold text-green-500 active:bg-green-500/20 rounded-r-xl transition-colors drop-shadow-md">+</button>
           </div>
 
-          {/* OVERLAY STATISTICHE GIGANTI (FULL SCREEN CON SCROLL) */}
           {viewMode === 'stats' && (
              <div className="fixed inset-0 bg-gray-900/95 backdrop-blur-xl z-[9999] flex flex-col p-4 sm:p-6 animate-fade" style={{ margin: 0, borderRadius: 0 }}>
                 <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-3 mt-2">
@@ -1778,14 +1774,12 @@
                    <button onClick={()=>setViewMode('life')} className="bg-red-600 px-4 py-2 rounded-lg text-white font-bold shadow-lg shrink-0">Chiudi</button>
                 </div>
                 <div className="flex-1 overflow-y-auto pb-10 space-y-6">
-                   {/* Danni Comandante */}
                    <div>
                       <h4 className="text-blue-400 font-black text-lg mb-2 uppercase border-b border-gray-700 pb-1">⚔️ Danni Comandante</h4>
                       {opponents.map(opp => (
                          <BigStatRow key={opp.id} label={`Da: ${opp.name}`} value={player.cmdDmg[opp.id]} onSub={() => updateStat(player.id, 'cmdDmg', -1, opp.id)} onAdd={() => updateStat(player.id, 'cmdDmg', 1, opp.id)} />
                       ))}
                    </div>
-                   {/* Segnalini Numerici */}
                    <div>
                       <h4 className="text-green-400 font-black text-lg mb-2 uppercase border-b border-gray-700 pb-1">🔢 Segnalini</h4>
                       <BigStatRow label="💧 Veleno" value={player.poison} onSub={() => updateStat(player.id, 'poison', -1)} onAdd={() => updateStat(player.id, 'poison', 1)} />
@@ -1796,7 +1790,6 @@
                       <BigStatRow label="✨ Esperienza" value={player.exp || 0} onSub={() => updateStat(player.id, 'exp', -1)} onAdd={() => updateStat(player.id, 'exp', 1)} />
                       <BigStatRow label="🎫 Ticket" value={player.ticket || 0} onSub={() => updateStat(player.id, 'ticket', -1)} onAdd={() => updateStat(player.id, 'ticket', 1)} />
                    </div>
-                   {/* Status Aggiuntivi Toggles */}
                    <div>
                       <h4 className="text-yellow-400 font-black text-lg mb-2 uppercase border-b border-gray-700 pb-1">🔰 Designatori di Stato</h4>
                       <div className="grid grid-cols-2 gap-3">
@@ -1806,7 +1799,6 @@
                          <button onClick={() => { let next = 'day'; if(player.dayNight === 'day') next = 'night'; else if(player.dayNight === 'night') next = 'none'; updatePlayerConfig(player.id, 'dayNight', next); }} className={`p-4 rounded-xl font-bold shadow-lg flex flex-col items-center justify-center gap-1 border transition-all ${player.dayNight === 'day' ? 'bg-yellow-500 border-yellow-300 text-black' : (player.dayNight === 'night' ? 'bg-blue-900 border-blue-500 text-white' : 'bg-gray-800 border-gray-600 text-gray-400')}`}><span className="text-2xl">{player.dayNight === 'day' ? '☀️' : (player.dayNight === 'night' ? '🌙' : '🌤️')}</span> {player.dayNight === 'day' ? 'Giorno' : (player.dayNight === 'night' ? 'Notte' : 'Nessuno')}</button>
                       </div>
                    </div>
-                   {/* Azioni Extra */}
                    <div className="pt-4 flex flex-col gap-3">
                       <button onClick={() => setViewMode('search')} className="w-full bg-blue-600 text-white font-black py-4 rounded-xl shadow-lg border border-blue-400 text-lg">🔍 Cerca Sfondo Comandante</button>
                       <button onClick={() => toggleImmunity(player.id)} className={`w-full py-4 font-black rounded-xl shadow-lg border text-lg ${player.immune ? 'bg-cyan-600 text-white border-cyan-400' : 'bg-gray-800 text-gray-300 border-gray-600'}`}>{player.immune ? '🛡️ Immunità (Danni Bloccati)' : 'Attiva Immunità (Ferma Danni)'}</button>
@@ -1815,7 +1807,6 @@
              </div>
           )}
 
-          {/* OVERLAY CERCA COMANDANTE A SCHERMO INTERO */}
           {viewMode === 'search' && (
              <div className="fixed inset-0 bg-gray-900/95 backdrop-blur-xl z-[9999] flex flex-col p-4 sm:p-6 animate-fade" style={{ margin: 0, borderRadius: 0 }}>
                 <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-3 mt-2">
@@ -1840,7 +1831,6 @@
              </div>
           )}
 
-          {/* OVERLAY MANA (FULL SCREEN) */}
           {viewMode === 'mana' && (
              <div className="fixed inset-0 bg-gray-900/95 backdrop-blur-xl z-[9999] flex flex-col p-4 sm:p-6 animate-fade" style={{ margin: 0, borderRadius: 0 }}>
                 <div className="flex justify-between items-center mb-6 border-b border-gray-700 pb-3 mt-2">
@@ -1866,7 +1856,7 @@
       );
     };
 
-    // --- PLAYTESTER SANDBOX (TAVOLO VIRTUALE REINSERITO) ---
+    // --- PLAYTESTER SANDBOX ---
     const PlaytesterSandbox = ({view, setView, navigate}) => {
        const [decks, setDecks] = useState([]);
        const [selectedDeckId, setSelectedDeckId] = useState("");
@@ -2095,12 +2085,12 @@
       );
     };
 
-// --- DATABASE & SCAN CARTE (PARTE 4 AGGIORNATA CON OCR POTENZIATO E PREZZI) ---
+    // --- DATABASE & SCAN CARTE (OCR + PREZZI) ---
     const CardSearchExplorer = ({navigate}) => {
       const [query, setQuery] = useState("");
       const [oracleText, setOracleText] = useState("");
       const [mana, setMana] = useState([]);
-      const [colorMatchType, useStateColorMatchType] = useState('include'); 
+      const [colorMatchType, setColorMatchType] = useState('include'); 
       const [isMulticolorOnly, setIsMulticolorOnly] = useState(false);
       const [isCommanderOnly, setIsCommanderOnly] = useState(false);
 
@@ -2162,7 +2152,6 @@
         eseguiRicerca(`https://api.scryfall.com/cards/search?q=${encodeURIComponent(searchQuery.trim())}`, true);
       };
 
-      // NUOVO MOTORE SCAN POTENZIATO
       const handleScan = async (e) => {
          const file = e.target.files[0]; if(!file) return;
          if(typeof Tesseract === 'undefined') return alert("Il motore OCR sta ancora caricando, riprova tra qualche secondo.");
@@ -2170,12 +2159,10 @@
          setIsScanning(true); setScanProgress("Ottimizzo l'immagine...");
          
          try {
-            // PRE-ELABORAZIONE: Canvas per contrasto e bianco/nero
             const processedImgSrc = await new Promise((resolve) => {
                const img = new Image();
                img.onload = () => {
                   const canvas = document.createElement('canvas');
-                  // Limito la grandezza per non fondere la CPU del telefono
                   const maxDim = 1000;
                   let w = img.width; let h = img.height;
                   if (w > maxDim || h > maxDim) {
@@ -2184,7 +2171,6 @@
                   }
                   canvas.width = w; canvas.height = h;
                   const ctx = canvas.getContext('2d');
-                  // Magia nera: scala di grigi e contrasto altissimo
                   ctx.filter = 'grayscale(100%) contrast(300%) brightness(120%)';
                   ctx.drawImage(img, 0, 0, w, h);
                   resolve(canvas.toDataURL('image/jpeg', 0.9));
@@ -2197,15 +2183,12 @@
                logger: m => { if(m.status === 'recognizing text') setScanProgress(`Scansione OCR: ${Math.round(m.progress * 100)}%`); }
             });
             
-            // Pulizia del testo e Fuzzy Search
             const textLines = result.data.text.split('\n').map(l => l.trim()).filter(l => l.length > 2);
             if(textLines.length > 0) {
-                // Prendiamo le prime due righe ripulite da simboli strani
                 let possibleName = textLines.slice(0, 2).join(' ').replace(/[^a-zA-Z\s,'-]/g, '').replace(/\s+/g, ' ').trim();
                 setQuery(possibleName);
                 setScanProgress(`Cerco: "${possibleName}"...`);
                 
-                // Ricerca Elastica (Fuzzy) per perdonare gli errori OCR
                 try {
                     const fuzzyRes = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(possibleName)}`);
                     const fuzzyData = await fuzzyRes.json();
@@ -2224,11 +2207,9 @@
                         setScanProgress(""); setIsScanning(false); return;
                     }
                 } catch(e) {}
-                
-                // Se la Fuzzy fallisce, fallback alla ricerca normale
                 searchCard(possibleName);
             } else {
-                alert("Testo non rilevato. Cerca di inquadrare bene il titolo in cima alla carta (o rimuovi la bustina se fa riflesso)!");
+                alert("Testo non rilevato. Cerca di inquadrare bene il titolo in cima alla carta!");
             }
          } catch(err) { console.error(err); alert("Errore OCR."); }
          setIsScanning(false); setScanProgress("");
@@ -2356,7 +2337,7 @@
                     {isScanning && <p className="text-yellow-400 font-black text-sm mt-3 animate-pulse">{scanProgress}</p>}
                  </div>
 
-                 {/* ZONA RICERCA MANUALE (Identica al Deckbuilder) */}
+                 {/* ZONA RICERCA MANUALE */}
                  <h3 className="font-bold text-gray-300 mb-2">Ricerca Manuale:</h3>
                  <div className="flex gap-2 mb-2"><input type="text" placeholder="Nome (es. Plains)" value={query} onChange={e => setQuery(e.target.value)} onKeyPress={e => e.key === 'Enter' && searchCard(null)} className="flex-1 bg-gray-900 border border-gray-600 rounded p-3 text-white outline-none" /></div>
                  <div className="flex gap-2 mb-3"><input type="text" placeholder="Testo Abilità" value={oracleText} onChange={e => setOracleText(e.target.value)} onKeyPress={e => e.key === 'Enter' && searchCard(null)} className="flex-1 bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm outline-none" /></div>
