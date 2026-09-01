@@ -427,6 +427,7 @@
         <span className="font-bold text-sm tracking-wide">{text}</span>
       </button>
     );
+
     const BackupView = ({navigate}) => {
       const [email, setEmail] = useState("");
       const [password, setPassword] = useState("");
@@ -480,6 +481,51 @@
         setLoading(false);
       };
 
+      // --- NUOVE FUNZIONI PER IL BACKUP OFFLINE MANUALE ---
+      const handleManualExport = () => {
+        const dataToExport = {
+           decks: JSON.parse(localStorage.getItem('mtg_decks') || '[]'),
+           proxies: JSON.parse(localStorage.getItem('mtg_proxies') || '[]')
+        };
+        const dataStr = JSON.stringify(dataToExport);
+        const blob = new Blob([dataStr], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `MTG_Companion_Backup_${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      };
+
+      const handleManualImport = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        if (!confirm("ATTENZIONE: Importando questo file sovrascriverai i mazzi e le proxy attualmente salvati su questo dispositivo. Sei sicuro?")) {
+           e.target.value = null; return;
+        }
+        
+        const reader = new FileReader();
+        reader.onload = (event) => {
+           try {
+              const importedData = JSON.parse(event.target.result);
+              if (importedData.decks) {
+                 localStorage.setItem('mtg_decks', JSON.stringify(importedData.decks));
+                 window.dispatchEvent(new Event("cloud_sync_update"));
+              }
+              if (importedData.proxies) {
+                 localStorage.setItem('mtg_proxies', JSON.stringify(importedData.proxies));
+                 window.dispatchEvent(new Event("cloud_proxies_update"));
+              }
+              alert("Dati ripristinati con successo dal file locale!");
+           } catch (err) {
+              alert("Errore nella lettura del file. Assicurati che sia un file di backup valido generato da questa app.");
+           }
+        };
+        reader.readAsText(file);
+      };
+
       return (
         <div className="max-w-md mx-auto bg-gray-800/90 p-6 rounded-xl shadow-lg border border-gray-600 mt-4 backdrop-blur-sm space-y-6 animate-fade">
           <h2 className="text-3xl font-black text-center text-blue-400 drop-shadow-md">Cloud Sync</h2>
@@ -521,6 +567,19 @@
               </div>
             </div>
           )}
+
+          {/* NUOVA SEZIONE OFFLINE */}
+          <div className="pt-6 border-t border-gray-700 mt-6">
+             <h3 className="text-xl font-black text-center text-emerald-400 drop-shadow-md mb-2">Backup Manuale Offline</h3>
+             <p className="text-gray-400 text-xs text-center font-bold mb-4">Salva mazzi e proxy in un file sul tuo dispositivo, utile se non hai connessione o non vuoi registrarti.</p>
+             <div className="flex gap-2">
+               <button onClick={handleManualExport} className="flex-1 bg-emerald-700 hover:bg-emerald-600 text-white font-black py-3 rounded-xl shadow transition-colors">📦 ESPORTA</button>
+               <label className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-black py-3 rounded-xl shadow transition-colors cursor-pointer text-center flex items-center justify-center">
+                 📂 IMPORTA
+                 <input type="file" accept=".json" className="hidden" onChange={handleManualImport} />
+               </label>
+             </div>
+          </div>
         </div>
       );
     };
