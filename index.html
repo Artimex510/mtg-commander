@@ -18,6 +18,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-storage-compat.js"></script>
   
   <style>
     body { -webkit-font-smoothing: antialiased; overflow-x: hidden; user-select: none; -webkit-touch-callout: none; background-color: #000; }
@@ -55,10 +56,11 @@
     if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
     const auth = firebase.auth();
     const db = firebase.firestore();
+    const storage = firebase.storage();
 
     const syncToCloud = async (uid) => {
       const decks = JSON.parse(localStorage.getItem('mtg_decks') || '[]');
-      await db.collection('users').doc(uid).set({ decks, lastSync: new Date().toISOString() });
+      await db.collection('users').doc(uid).set({ decks, lastSync: new Date().toISOString() }, { merge: true });
     };
 
     const syncFromCloud = async (uid) => {
@@ -69,6 +71,31 @@
         return true;
       }
       return false;
+    };
+
+    const syncSingleProxyToCloud = async (uid, proxy) => {
+      try {
+         const storageRef = storage.ref(`users/${uid}/proxies/${proxy.id}.jpg`);
+         await storageRef.putString(proxy.proxyImage, 'data_url');
+         const downloadURL = await storageRef.getDownloadURL();
+         const cloudProxy = { ...proxy, proxyImage: downloadURL, image: downloadURL };
+         const doc = await db.collection('users').doc(uid).get();
+         let cloudProxies = doc.exists && doc.data().proxies ? doc.data().proxies : [];
+         cloudProxies.push(cloudProxy);
+         await db.collection('users').doc(uid).set({ proxies: cloudProxies }, { merge: true });
+      } catch (err) { console.error("Errore upload proxy:", err); }
+    };
+
+    const deleteProxyFromCloud = async (uid, proxyId) => {
+      try {
+         const doc = await db.collection('users').doc(uid).get();
+         if(doc.exists && doc.data().proxies) {
+            const newProxies = doc.data().proxies.filter(p => p.id !== proxyId);
+            await db.collection('users').doc(uid).set({ proxies: newProxies }, { merge: true });
+         }
+         const storageRef = storage.ref(`users/${uid}/proxies/${proxyId}.jpg`);
+         await storageRef.delete().catch(()=>console.log("Immagine rimossa"));
+      } catch(err) { console.error("Errore delete proxy:", err); }
     };
 
     const Icons = {
@@ -132,6 +159,21 @@
                    localStorage.setItem('mtg_decks', JSON.stringify(data.decks));
                    window.dispatchEvent(new Event("cloud_sync_update"));
                 }
+                if (data.proxies) {
+                   const localProxies = JSON.parse(localStorage.getItem('mtg_proxies') || '[]');
+                   const localIds = new Set(localProxies.map(p => p.id));
+                   let updated = false;
+                   data.proxies.forEach(cp => {
+                      if (!localIds.has(cp.id)) {
+                         localProxies.push(cp);
+                         updated = true;
+                      }
+                   });
+                   if(updated) {
+                      localStorage.setItem('mtg_proxies', JSON.stringify(localProxies));
+                      window.dispatchEvent(new Event("cloud_proxies_update"));
+                   }
+                }
               }
             });
           } else {
@@ -143,6 +185,7 @@
           if (unsubscribeSnapshot) unsubscribeSnapshot();
         };
       }, []);
+
       const videoRef = useRef(null);
       const [view, setView] = useState('home');
       const [menuOpen, setMenuOpen] = useState(false);
@@ -308,14 +351,14 @@
          const list = cart.singles.map(c => `1 ${c.name}`).join('\n');
          navigator.clipboard.writeText(list);
          alert("Lista copiata negli appunti!\nTi sto portando su CardTrader per l'acquisto automatico...");
-         window.open("https://www.cardtrader.com/it/mass_imports?share_code=IL_TUO_TOKEN_FUTURO", "_blank");
+         window.open("https://www.cardtrader.com/it/mass_imports?share_code=MATTEO", "_blank");
       };
 
       const checkoutDeck = (deck) => {
          const list = deck.cards.map(c => `1 ${c.name}`).join('\n');
          navigator.clipboard.writeText(list);
          alert(`Lista del mazzo "${deck.name}" copiata!\nTi sto portando su CardTrader...`);
-         window.open("https://www.cardtrader.com/it/mass_imports?share_code=IL_TUO_TOKEN_FUTURO", "_blank");
+         window.open("https://www.cardtrader.com/it/mass_imports?share_code=MATTEO", "_blank");
       };
 
       return (
@@ -330,7 +373,7 @@
           {tab === 'singles' && (
              <div className="space-y-4 animate-fade">
                 {cart.singles.length === 0 ? <p className="text-center text-gray-400 font-bold">Nessuna carta singola.</p> : (
-                   <>
+                   <React.Fragment>
                      <div className="bg-gray-900 p-2 rounded-lg border border-gray-700 max-h-64 overflow-y-auto space-y-2">
                         {cart.singles.map((c, i) => (
                            <div key={i} className="flex justify-between items-center bg-gray-800 p-2 rounded shadow">
@@ -343,7 +386,7 @@
                         ))}
                      </div>
                      <button onClick={checkoutSingles} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl shadow-[0_0_15px_rgba(37,99,235,0.4)] transition-all">ACQUISTA SINGOLE SU CARDTRADER</button>
-                   </>
+                   </React.Fragment>
                 )}
              </div>
           )}
@@ -476,13 +519,19 @@
     const MyProxies = ({navigate}) => {
       const [proxies, setProxies] = useState([]);
       
-      useEffect(() => { setProxies(JSON.parse(localStorage.getItem('mtg_proxies') || '[]')); }, []);
+      useEffect(() => { 
+         const loadProxies = () => setProxies(JSON.parse(localStorage.getItem('mtg_proxies') || '[]'));
+         loadProxies();
+         window.addEventListener("cloud_proxies_update", loadProxies);
+         return () => window.removeEventListener("cloud_proxies_update", loadProxies);
+      }, []);
 
       const deleteProxy = (id) => {
          if(confirm("Vuoi eliminare questa Proxy? Verrà rimossa dal database (ma resterà nei mazzi dove l'hai già applicata finché non li modifichi).")) {
              const newProxies = proxies.filter(p => p.id !== id);
              localStorage.setItem('mtg_proxies', JSON.stringify(newProxies));
              setProxies(newProxies);
+             if (auth.currentUser) { deleteProxyFromCloud(auth.currentUser.uid, id); }
          }
       };
 
@@ -570,6 +619,9 @@
              const finalDataUrl = canvas.toDataURL("image/jpeg", 0.9);
              const newProxy = { id: 'proxy-' + Date.now(), name: customName || baseCard.name, image: finalDataUrl, proxyImage: finalDataUrl, imageBack: null, type: baseCard.type, cmc: baseCard.cmc || 0, colors: card ? (card.colors || []) : [], isCommander: false, isCustom: true };
              let savedProxies = JSON.parse(localStorage.getItem('mtg_proxies') || '[]'); savedProxies.push(newProxy); localStorage.setItem('mtg_proxies', JSON.stringify(savedProxies));
+             
+             if (auth.currentUser) { syncSingleProxyToCloud(auth.currentUser.uid, newProxy); }
+
              setIsGenerating(false);
              if(isStandalone) { alert("Proxy Salvata nel Database!"); } else { onSave({...card, proxyImage: finalDataUrl, name: customName || card.name, isCustom: true}); }
           };
@@ -806,7 +858,7 @@
                      if (!oracle_text) oracle_text = c.card_faces.map(f=>f.oracle_text).join(' ');
                      if (!mana_cost) mana_cost = c.card_faces[0].mana_cost;
                  }
-                 arr.push({ id: c.id || Math.random().toString(), deckId: 'import-' + Date.now() + '-' + Math.random() + '-' + j, name: c.name || "Sconosciuta", image: img, imageBack: imgBack, type: c.type_line || "", cmc: c.cmc || 0, colors: c.color_identity || [], legalities: c.legalities || {}, printsUrl: c.prints_search_uri || null, isCommander: false, isSideboard: addToSideboard, isCompanion: false, oracle_text: oracle_text, mana_cost: mana_cost });
+                 arr.push({ id: c.id || Math.random().toString(), deckId: 'import-' + Date.now() + '-' + Math.random() + '-' + j, name: c.name || "Sconosciuta", image: img, imageBack: imgBack, type: c.type_line || "", cmc: c.cmc || 0, colors: c.color_identity || [], legalities: c.legalities || {}, printsUrl: c.prints_search_uri || null, isCommander: false, isSideboard: addToSideboard, isCompanion: false, oracle_text: oracle_text, mana_cost: mana_cost, prices: c.prices || {} });
                } return arr;
             }).catch(e => { return []; });
           promises.push(p);
@@ -1354,7 +1406,7 @@
         window.addEventListener("cloud_sync_update", loadDecks);
         return () => window.removeEventListener("cloud_sync_update", loadDecks);
       }, []);
-      
+
       const toggleMana = (m) => setManaFilter(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
 
       const deleteDeck = (id) => {
@@ -1453,6 +1505,7 @@
     // --- DECK ANALYSIS E CONDIVISIONE ---
     const DeckAnalysis = ({deck, navigate}) => {
       const [showQR, setShowQR] = useState(false);
+
       if(!deck) return null;
 
       const cmds = deck.cards.filter(c => c.isCommander);
@@ -1619,7 +1672,7 @@
       </div>
     );
 
-    // --- GAME UTILITY (LIFE TRACKER) ---
+    // --- GAME UTILITY (LIFE TRACKER REVISONATO: FULL SCREEN E SEGNALINI) ---
     const GameUtility = ({view, setView}) => {
       const [setup, setSetup] = useState(true);
       const [numPlayers, setNumPlayers] = useState(4);
@@ -1690,7 +1743,6 @@
         </div>
       );
     };
-
     const PlayerCard = ({ player, updateStat, updateMana, toggleImmunity, opponents, updatePlayerConfig }) => {
       const [viewMode, setViewMode] = useState('life'); 
       const [cmdQuery, setCmdQuery] = useState("");
@@ -1856,7 +1908,6 @@
       );
     };
 
-    // --- PLAYTESTER SANDBOX ---
     const PlaytesterSandbox = ({view, setView, navigate}) => {
        const [decks, setDecks] = useState([]);
        const [selectedDeckId, setSelectedDeckId] = useState("");
@@ -2085,7 +2136,6 @@
       );
     };
 
-    // --- DATABASE & SCAN CARTE (OCR + PREZZI) ---
     const CardSearchExplorer = ({navigate}) => {
       const [query, setQuery] = useState("");
       const [oracleText, setOracleText] = useState("");
