@@ -64,22 +64,24 @@
         try { rawDecks = JSON.parse(localStorage.getItem('mtg_decks')) || []; } catch(e){}
         if (!Array.isArray(rawDecks)) rawDecks = [];
 
-        // Filtro ultra-sicuro per togliere il peso dalle proxy senza andare in errore
+        // Filtro ultra-sicuro per alleggerire i file e non sfondare 1MB
         const cleanCard = (c) => { 
             if (!c) return c;
             let newC = { ...c };
             if (newC.isCustom || 
                (typeof newC.proxyImage === 'string' && newC.proxyImage.startsWith('data:image')) || 
-               (typeof newC.image === 'string' && newC.image.startsWith('data:image'))) { 
+               (typeof newC.image === 'string' && newC.image.startsWith('data:image')) ||
+               (typeof newC.imageBack === 'string' && newC.imageBack.startsWith('data:image'))) { 
                 newC.proxyImage = ""; 
                 newC.image = ""; 
+                newC.imageBack = "";
             } 
             return newC; 
         };
         
         const decksToCloud = rawDecks.map(deck => ({ ...deck, cards: (deck.cards || []).map(cleanCard) }));
         
-        let rawCart = { singles: [], decks: [], lastUpdated: 0 };
+        let rawCart = { singles: [], decks: [], lastUpdated: Date.now() };
         try { 
             const parsedCart = JSON.parse(localStorage.getItem('mtg_cart'));
             if (parsedCart && typeof parsedCart === 'object') rawCart = { ...rawCart, ...parsedCart };
@@ -91,18 +93,27 @@
             decks: (rawCart.decks || []).map(d => ({ ...d, cards: (d.cards || []).map(cleanCard) })) 
         };
 
-        // Carica in sicurezza le vecchie proxy rimaste bloccate offline
+        // 1. SALVATAGGIO IMMEDIATO (Non fa più da "tappo" aspettando le proxy)
+        await db.collection('users').doc(uid).set({ 
+            decks: decksToCloud, 
+            cart: cartToCloud, 
+            lastSync: new Date().toISOString() 
+        }, { merge: true });
+
+        // 2. RECUPERO PROXY IN BACKGROUND (Silenzioso e separato)
         let localProxies = [];
         try { localProxies = JSON.parse(localStorage.getItem('mtg_proxies')) || []; } catch(e){}
-        for (const proxy of localProxies) {
+        localProxies.forEach(proxy => {
              if (proxy && typeof proxy.proxyImage === 'string' && proxy.proxyImage.startsWith('data:image')) {
-                 await syncSingleProxyToCloud(uid, proxy);
+                 syncSingleProxyToCloud(uid, proxy); // Nessun "await" qui!
              }
-        }
+        });
 
-        await db.collection('users').doc(uid).set({ decks: decksToCloud, cart: cartToCloud, lastSync: new Date().toISOString() }, { merge: true });
-        
-      } catch (err) { console.error("Errore salvataggio su Firebase:", err); }
+      } catch (err) { 
+          // 3. ALLARME PARLANTE! Se Firebase fallisce, ora te lo dice in faccia.
+          console.error("Errore salvataggio Firebase:", err);
+          alert("Firebase ha bloccato il salvataggio!\nMotivo: " + err.message); 
+      }
     };
 
     const syncFromCloud = async (uid) => {
@@ -129,7 +140,6 @@
          const doc = await docRef.get();
          let cloudProxies = doc.exists && doc.data().proxies ? doc.data().proxies : [];
          
-         // DEDUPLICAZIONE: previene il loop che ha bloccato Firebase stamattina a 1MB!
          cloudProxies = cloudProxies.filter(p => p && p.id !== proxy.id); 
          cloudProxies.push({ ...proxy, proxyImage: downloadURL, image: downloadURL });
          
