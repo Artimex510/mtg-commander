@@ -61,38 +61,24 @@
     const syncToCloud = async (uid) => {
       try {
         const rawDecks = JSON.parse(localStorage.getItem('mtg_decks') || '[]');
+        const cleanCard = (c) => { if (c.isCustom && c.proxyImage && c.proxyImage.startsWith('data:image')) { return { ...c, proxyImage: "", image: "" }; } return c; };
         
-        // Funzione per ripulire le carte dai Base64 pesanti (immagini proxy)
-        const cleanCard = (c) => {
-           if (c.isCustom && c.proxyImage && c.proxyImage.startsWith('data:image')) {
-               return { ...c, proxyImage: "", image: "" };
-           }
-           return c;
-        };
-
-        // 1. Puliamo i mazzi
-        const decksToCloud = rawDecks.map(deck => ({
-           ...deck,
-           cards: deck.cards.map(cleanCard)
-        }));
-
-        // 2. Puliamo il carrello!
+        const decksToCloud = rawDecks.map(deck => ({ ...deck, cards: deck.cards.map(cleanCard) }));
         const rawCart = JSON.parse(localStorage.getItem('mtg_cart') || '{"singles":[], "decks":[], "lastUpdated":0}');
-        const cartToCloud = {
-            ...rawCart,
-            singles: (rawCart.singles || []).map(cleanCard),
-            decks: (rawCart.decks || []).map(d => ({
-                ...d,
-                cards: (d.cards || []).map(cleanCard)
-            }))
-        };
+        const cartToCloud = { ...rawCart, singles: (rawCart.singles || []).map(cleanCard), decks: (rawCart.decks || []).map(d => ({ ...d, cards: (d.cards || []).map(cleanCard) })) };
+
+        // NOVITÀ: Cerca le proxy locali non ancora caricate e le spedisce al Cloud
+        const localProxies = JSON.parse(localStorage.getItem('mtg_proxies') || '[]');
+        for (const proxy of localProxies) {
+             if (proxy.proxyImage && proxy.proxyImage.startsWith('data:image')) {
+                 await syncSingleProxyToCloud(uid, proxy);
+             }
+        }
 
         await db.collection('users').doc(uid).set({ decks: decksToCloud, cart: cartToCloud, lastSync: new Date().toISOString() }, { merge: true });
-      } catch (err) {
-        console.error("Errore salvataggio su Firebase:", err);
-      }
+      } catch (err) { console.error("Errore salvataggio su Firebase:", err); }
     };
-
+    
     const syncFromCloud = async (uid) => {
       const doc = await db.collection('users').doc(uid).get();
       if(doc.exists) {
@@ -192,23 +178,13 @@
         const unsubscribeAuth = auth.onAuthStateChanged(u => {
           setCurrentUser(u);
           if (u) {
-            // Sincronizzazione in TEMPO REALE riattivata (Bidirezionale)
             unsubscribeSnapshot = db.collection('users').doc(u.uid).onSnapshot(doc => {
               if (doc.exists) {
                 const data = doc.data();
                 
                 if (data.decks) {
                    const localProxies = JSON.parse(localStorage.getItem('mtg_proxies') || '[]');
-                   const enrichedDecks = data.decks.map(d => ({
-                       ...d,
-                       cards: d.cards.map(c => {
-                           if (c.isCustom) {
-                               const p = localProxies.find(x => x.id === c.id);
-                               if (p) return { ...c, proxyImage: p.proxyImage || p.image, image: p.image || p.proxyImage };
-                           }
-                           return c;
-                       })
-                   }));
+                   const enrichedDecks = data.decks.map(d => ({ ...d, cards: d.cards.map(c => { if (c.isCustom) { const p = localProxies.find(x => x.id === c.id); if (p) return { ...c, proxyImage: p.proxyImage || p.image, image: p.image || p.proxyImage }; } return c; }) }));
                    localStorage.setItem('mtg_decks', JSON.stringify(enrichedDecks));
                    window.dispatchEvent(new Event("cloud_sync_update"));
                 }
@@ -219,13 +195,18 @@
                 }
 
                 if (data.proxies) {
-                   const localProxies = JSON.parse(localStorage.getItem('mtg_proxies') || '[]');
-                   const localIds = new Set(localProxies.map(p => p.id));
+                   let localProxies = JSON.parse(localStorage.getItem('mtg_proxies') || '[]');
                    let updated = false;
                    data.proxies.forEach(cp => {
-                      if (!localIds.has(cp.id)) {
-                         localProxies.push(cp);
-                         updated = true;
+                      const existingIndex = localProxies.findIndex(p => p.id === cp.id);
+                      if (existingIndex === -1) {
+                          // Se la proxy è sul Cloud ma non sul telefono, la scarica!
+                          localProxies.push(cp); 
+                          updated = true; 
+                      } else if (localProxies[existingIndex].proxyImage.startsWith('data:image') && cp.proxyImage.startsWith('http')) {
+                          // Se il telefono ha l'immagine pesante e il cloud ha il link leggero, sostituisce per fare spazio!
+                          localProxies[existingIndex] = cp; 
+                          updated = true; 
                       }
                    });
                    if(updated) {
@@ -234,9 +215,7 @@
                    }
                 }
               }
-            }, (error) => {
-              console.error("Firebase ha bloccato la sincronizzazione (Controlla le Regole Firestore!):", error);
-            });
+            }, (error) => { console.error("Errore Snapshot:", error); });
           } else {
             if (unsubscribeSnapshot) unsubscribeSnapshot();
           }
@@ -247,26 +226,7 @@
           if (unsubscribeSnapshot) unsubscribeSnapshot();
         };
       }, []);
-      const videoRef = useRef(null);
-      const [view, setView] = useState('home');
-      const [menuOpen, setMenuOpen] = useState(false);
-      const [activeDeck, setActiveDeck] = useState(null); 
-      
-      useEffect(() => {
-        window.history.pushState(null, null, window.location.href);
-        const handlePopState = (e) => {
-            const leave = window.confirm("Vuoi uscire dall'app? Le modifiche non salvate andranno perse.");
-            if (!leave) { window.history.pushState(null, null, window.location.href); }
-        };
-        const handleBeforeUnload = (e) => { e.returnValue = "Vuoi uscire dall'app?"; };
-        window.addEventListener("popstate", handlePopState);
-        window.addEventListener("beforeunload", handleBeforeUnload);
-        return () => {
-           window.removeEventListener("popstate", handlePopState);
-           window.removeEventListener("beforeunload", handleBeforeUnload);
-        };
-      }, []);
-
+     
       const navigate = (newView, deck = null) => { setActiveDeck(deck); setView(newView); setMenuOpen(false); };
 
       const handlePlayIntro = () => {
