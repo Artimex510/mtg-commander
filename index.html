@@ -175,6 +175,7 @@
       const [view, setView] = useState('home');
       const [menuOpen, setMenuOpen] = useState(false);
       const [activeDeck, setActiveDeck] = useState(null);
+      const videoRef = useRef(null);
       
       useEffect(() => {
         let unsubscribeSnapshot = null;
