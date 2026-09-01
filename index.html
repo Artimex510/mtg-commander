@@ -13,7 +13,6 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
-  <!-- LIBRERIA OCR AGGIUNTA PER LO SCAN CARTE -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
   <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
@@ -104,6 +103,7 @@
     const categoriesOrder = ["Comandante", "Companion", "Creature", "Planeswalker", "Istantanei", "Stregonerie", "Artefatti", "Incantesimi", "Terre", "Altro", "Sideboard"];
 
     const buildCardKey = (c) => c.name + (c.isCustom ? c.proxyImage : "") + c.id + !!c.isSideboard + !!c.isCommander + !!c.isCompanion;
+    
     const addToCart = (type, item) => {
         let cart = JSON.parse(localStorage.getItem('mtg_cart') || '{"singles":[], "decks":[]}');
         if (type === 'single') {
@@ -125,13 +125,11 @@
         const unsubscribeAuth = auth.onAuthStateChanged(u => {
           setCurrentUser(u);
           if (u) {
-            // Sincronizzazione in Tempo Reale
             unsubscribeSnapshot = db.collection('users').doc(u.uid).onSnapshot(doc => {
               if (doc.exists) {
                 const data = doc.data();
                 if (data.decks) {
                    localStorage.setItem('mtg_decks', JSON.stringify(data.decks));
-                   // Avvisa l'app che i dati sono cambiati in background
                    window.dispatchEvent(new Event("cloud_sync_update"));
                 }
               }
@@ -223,7 +221,6 @@
                     <h2 className="text-2xl font-bold mb-6 border-b border-gray-700 pb-2">Menu</h2>
                     <nav className="space-y-4">
                       <MenuBtn icon={<Icons.Home/>} text="Home" onClick={() => navigate('home')} />
-                      {/* NUOVA VOCE SCAN & DATABASE AGGIUNTA QUI */}
                       <MenuBtn icon="🔍" text="Database & Scan" onClick={() => navigate('cardsearch')} />
                       <MenuBtn icon="🎴" text="Deckbuilding" onClick={() => navigate('deckbuilder')} />
                       <MenuBtn icon="📚" text="I Miei Mazzi" onClick={() => navigate('mydecks')} />
@@ -253,9 +250,7 @@
               <main className={`${(view !== 'game_active' && view !== 'playtester_active') ? 'pt-20 px-2 pb-10' : ''} flex-1 relative z-10`}>
                 {view === 'home' && <HomeView navigate={navigate} />}
                 {view === 'deckbuilder' && <DeckBuilder navigate={navigate} activeDeck={activeDeck} />}
-                {/* ROTTA DEL NUOVO MODULO SCAN */}
                 {view === 'cardsearch' && <CardSearchExplorer navigate={navigate} />}
-                
                 {view === 'mydecks' && <MyDecks navigate={navigate} />}
                 {view === 'cart' && <CartView navigate={navigate} />}
                 {view === 'myproxies' && <MyProxies navigate={navigate} />}
@@ -380,7 +375,6 @@
         <span className="font-bold text-sm tracking-wide">{text}</span>
       </button>
     );
-
     const BackupView = ({navigate}) => {
       const [email, setEmail] = useState("");
       const [password, setPassword] = useState("");
@@ -1347,7 +1341,6 @@
         </div>
       );
     };
-
     // --- I MIEI MAZZI ---
     const MyDecks = ({navigate}) => {
       const [decks, setDecks] = useState([]);
@@ -2107,7 +2100,7 @@
       const [query, setQuery] = useState("");
       const [oracleText, setOracleText] = useState("");
       const [mana, setMana] = useState([]);
-      const [colorMatchType, setColorMatchType] = useState('include'); 
+      const [colorMatchType, useStateColorMatchType] = useState('include'); 
       const [isMulticolorOnly, setIsMulticolorOnly] = useState(false);
       const [isCommanderOnly, setIsCommanderOnly] = useState(false);
 
