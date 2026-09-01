@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>MTG Commander Companion</title>
-  
+
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#000000">
 
@@ -19,7 +19,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-storage-compat.js"></script>
-  
+
   <style>
     body { -webkit-font-smoothing: antialiased; overflow-x: hidden; user-select: none; -webkit-touch-callout: none; background-color: #000; }
     .animate-fade { animation: fadeIn 0.2s ease-in-out; forwards; }
@@ -52,7 +52,7 @@
       messagingSenderId: "742946721330",
       appId: "1:742946721330:web:3cb566ddd6c8b9ada7362b"
     };
-    
+
     if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
     const auth = firebase.auth();
     const db = firebase.firestore();
@@ -67,7 +67,6 @@
         const rawCart = JSON.parse(localStorage.getItem('mtg_cart') || '{"singles":[], "decks":[], "lastUpdated":0}');
         const cartToCloud = { ...rawCart, singles: (rawCart.singles || []).map(cleanCard), decks: (rawCart.decks || []).map(d => ({ ...d, cards: (d.cards || []).map(cleanCard) })) };
 
-        // NOVITÀ: Cerca le proxy locali non ancora caricate e le spedisce al Cloud
         const localProxies = JSON.parse(localStorage.getItem('mtg_proxies') || '[]');
         for (const proxy of localProxies) {
              if (proxy.proxyImage && proxy.proxyImage.startsWith('data:image')) {
@@ -78,7 +77,7 @@
         await db.collection('users').doc(uid).set({ decks: decksToCloud, cart: cartToCloud, lastSync: new Date().toISOString() }, { merge: true });
       } catch (err) { console.error("Errore salvataggio su Firebase:", err); }
     };
-    
+
     const syncFromCloud = async (uid) => {
       const doc = await db.collection('users').doc(uid).get();
       if(doc.exists) {
@@ -114,7 +113,6 @@
          await storageRef.delete().catch(()=>console.log("Immagine rimossa"));
       } catch(err) { console.error("Errore delete proxy:", err); }
     };
-
     const Icons = {
       Menu: () => <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16"/></svg>,
       Home: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 001 1m-6 0h6"/></svg>,
@@ -161,14 +159,13 @@
             alert(`Mazzo "${item.name}" aggiunto al Carrello!`);
         }
         
-        cart.lastUpdated = Date.now(); // Marca temporale aggiunta
+        cart.lastUpdated = Date.now();
         localStorage.setItem('mtg_cart', JSON.stringify(cart));
         
-        // Sincronizza subito se l'utente è loggato
         const user = firebase.auth().currentUser;
         if (user) syncToCloud(user.uid).catch(e => console.error("Errore Sync Carrello:", e));
     };
-    
+
     function App() {
       const [introState, setIntroState] = useState('initial');
       const [currentUser, setCurrentUser] = useState(null);
@@ -176,7 +173,7 @@
       const [menuOpen, setMenuOpen] = useState(false);
       const [activeDeck, setActiveDeck] = useState(null);
       const videoRef = useRef(null);
-      
+
       useEffect(() => {
         let unsubscribeSnapshot = null;
         const unsubscribeAuth = auth.onAuthStateChanged(u => {
@@ -198,18 +195,16 @@
                    window.dispatchEvent(new Event("cloud_cart_update"));
                 }
 
-                if (Array.isArray(data.proxies)) {
+                if (data.proxies && Array.isArray(data.proxies)) {
                    let localProxies = JSON.parse(localStorage.getItem('mtg_proxies') || '[]');
                    let updated = false;
                    data.proxies.forEach(cp => {
-                      if (!cp || !cp.id) return; // Salta proxy danneggiate o nulle
-                      
+                      if (!cp || !cp.id) return;
                       const existingIndex = localProxies.findIndex(p => p && p.id === cp.id);
                       if (existingIndex === -1) {
                           localProxies.push(cp); 
                           updated = true; 
                       } else {
-                          // Estrazione iper-sicura delle immagini
                           const localProxy = localProxies[existingIndex];
                           const localImg = (localProxy && typeof localProxy.proxyImage === 'string') ? localProxy.proxyImage : "";
                           const cloudImg = (cp && typeof cp.proxyImage === 'string') ? cp.proxyImage : "";
@@ -237,15 +232,14 @@
           if (unsubscribeSnapshot) unsubscribeSnapshot();
         };
       }, []);
-     
+      
       const navigate = (newView, deck = null) => { setActiveDeck(deck); setView(newView); setMenuOpen(false); };
 
       const handlePlayIntro = () => {
          if(videoRef.current) {
              const playPromise = videoRef.current.play();
              if (playPromise !== undefined) {
-                 playPromise.then(() => { setIntroState('playing'); })
-                 .catch(e => { console.error("Errore video:", e); setIntroState('finished'); });
+                 playPromise.then(() => { setIntroState('playing'); }).catch(e => { console.error("Errore video:", e); setIntroState('finished'); });
              }
          } else { setIntroState('finished'); }
       };
@@ -350,7 +344,6 @@
         <span className="flex items-center justify-center w-6 h-6">{icon}</span> <span className="font-semibold text-sm">{text}</span>
       </button>
     );
-
     const HomeView = ({navigate}) => (
       <div className="flex flex-col items-center justify-center pt-8">
         <div className="mb-12 text-center">
@@ -375,10 +368,8 @@
          let c = JSON.parse(localStorage.getItem('mtg_cart') || '{"singles":[], "decks":[], "lastUpdated":0}');
          if (!c.singles) c.singles = []; if (!c.decks) c.decks = [];
          
-         // Se il carrello è vecchio ma non aveva data, gli mettiamo la data di oggi per evitare che si cancelli all'istante
          if (!c.lastUpdated) c.lastUpdated = Date.now();
          
-         // Controllo 15 giorni in millisecondi (15 gg * 24 h * 60 m * 60 s * 1000 ms)
          const QUINDICI_GIORNI = 15 * 24 * 60 * 60 * 1000;
          
          if ((Date.now() - c.lastUpdated > QUINDICI_GIORNI) && (c.singles.length > 0 || c.decks.length > 0)) {
@@ -399,7 +390,7 @@
 
       const remove = (type, index) => {
          let newCart = {...cart}; newCart[type].splice(index, 1);
-         newCart.lastUpdated = Date.now(); // Aggiorna il timer
+         newCart.lastUpdated = Date.now();
          setCart(newCart); 
          localStorage.setItem('mtg_cart', JSON.stringify(newCart));
          
@@ -410,7 +401,6 @@
       const checkoutSingles = () => {
          if(cart.singles.length === 0) return alert("Carrello vuoto!");
          
-         // Raggruppiamo le carte uguali per fare una lista pulita (es. "4 Brainstorm")
          const counts = {};
          cart.singles.forEach(c => { counts[c.name] = (counts[c.name] || 0) + 1; });
          const list = Object.keys(counts).map(name => `${counts[name]} ${name}`).join('\n');
@@ -421,7 +411,6 @@
       };
 
       const checkoutDeck = (deck) => {
-         // Stesso raggruppamento pulito anche per i mazzi interi
          const counts = {};
          deck.cards.forEach(c => { counts[c.name] = (counts[c.name] || 0) + 1; });
          const list = Object.keys(counts).map(name => `${counts[name]} ${name}`).join('\n');
@@ -542,7 +531,6 @@
         setLoading(false);
       };
 
-      // --- NUOVE FUNZIONI PER IL BACKUP OFFLINE MANUALE ---
       const handleManualExport = () => {
         const dataToExport = {
            decks: JSON.parse(localStorage.getItem('mtg_decks') || '[]'),
@@ -629,7 +617,6 @@
             </div>
           )}
 
-          {/* NUOVA SEZIONE OFFLINE */}
           <div className="pt-6 border-t border-gray-700 mt-6">
              <h3 className="text-xl font-black text-center text-emerald-400 drop-shadow-md mb-2">Backup Manuale Offline</h3>
              <p className="text-gray-400 text-xs text-center font-bold mb-4">Salva mazzi e proxy in un file sul tuo dispositivo, utile se non hai connessione o non vuoi registrarti.</p>
@@ -691,7 +678,6 @@
          </div>
       );
     };
-
     // --- PROXY EDITOR ---
     const ProxyEditor = ({card, onClose, onSave, isStandalone}) => {
       const [baseQuery, setBaseQuery] = useState("");
@@ -1354,7 +1340,6 @@
         </div>
       );
     };
-
     // --- VISUALIZZATORE MAZZI (SOLO LETTURA E TRADUZIONE) ---
     const DeckViewer = ({deck, navigate}) => {
       const [viewingCard, setViewingCard] = useState(null);
@@ -1522,6 +1507,7 @@
         </div>
       );
     };
+
     // --- I MIEI MAZZI ---
     const MyDecks = ({navigate}) => {
       const [decks, setDecks] = useState([]);
@@ -1872,6 +1858,7 @@
         </div>
       );
     };
+
     const PlayerCard = ({ player, updateStat, updateMana, toggleImmunity, opponents, updatePlayerConfig }) => {
       const [viewMode, setViewMode] = useState('life'); 
       const [cmdQuery, setCmdQuery] = useState("");
@@ -2506,18 +2493,15 @@
              <div className="bg-gray-800/90 p-4 rounded-xl border border-gray-600 shadow-xl backdrop-blur-sm mt-4">
                  <h2 className="text-2xl font-black text-indigo-400 mb-2 border-b border-gray-700 pb-2">Database & Scan</h2>
                  
-                 {/* ZONA SCANNER */}
                  <div className="bg-indigo-900/30 border border-indigo-500 p-4 rounded-xl mb-6 shadow-inner text-center">
                     <p className="text-indigo-200 text-xs font-bold mb-3">Scegli come inquadrare il TITOLO della carta per riconoscerla automaticamente!</p>
                     <div className="flex gap-3">
-                       {/* Pulsante per forzare la fotocamera (capture="environment" apre la camera posteriore) */}
                        <label className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-black py-3 rounded-xl cursor-pointer shadow-[0_0_15px_rgba(79,70,229,0.5)] transition-all flex flex-col items-center justify-center">
                           <span className="text-2xl mb-1">📸</span>
                           <span className="text-xs">FOTOCAMERA</span>
                           <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleScan} />
                        </label>
                        
-                       {/* Pulsante per aprire la galleria standard */}
                        <label className="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-black py-3 rounded-xl cursor-pointer shadow-[0_0_15px_rgba(147,51,234,0.5)] transition-all flex flex-col items-center justify-center">
                           <span className="text-2xl mb-1">🖼️</span>
                           <span className="text-xs">GALLERIA</span>
@@ -2527,7 +2511,6 @@
                     {isScanning && <p className="text-yellow-400 font-black text-sm mt-3 animate-pulse">{scanProgress}</p>}
                  </div>
 
-                 {/* ZONA RICERCA MANUALE */}
                  <h3 className="font-bold text-gray-300 mb-2">Ricerca Manuale:</h3>
                  <div className="flex gap-2 mb-2"><input type="text" placeholder="Nome (es. Plains)" value={query} onChange={e => setQuery(e.target.value)} onKeyPress={e => e.key === 'Enter' && searchCard(null)} className="flex-1 bg-gray-900 border border-gray-600 rounded p-3 text-white outline-none" /></div>
                  <div className="flex gap-2 mb-3"><input type="text" placeholder="Testo Abilità" value={oracleText} onChange={e => setOracleText(e.target.value)} onKeyPress={e => e.key === 'Enter' && searchCard(null)} className="flex-1 bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm outline-none" /></div>
@@ -2565,7 +2548,6 @@
                  </button>
              </div>
 
-             {/* RISULTATI */}
              {allResults.length > 0 && (
                 <div className="bg-gray-800/90 p-4 rounded-xl border border-gray-600 backdrop-blur-sm animate-fade">
                   <div className="flex justify-between items-center mb-3 border-b border-gray-700 pb-2">
