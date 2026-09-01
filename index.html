@@ -64,7 +64,7 @@
         try { rawDecks = JSON.parse(localStorage.getItem('mtg_decks')) || []; } catch(e){}
         if (!Array.isArray(rawDecks)) rawDecks = [];
 
-        // Filtro ultra-sicuro per alleggerire i file e non sfondare 1MB
+        // Filtro sicuro per togliere il peso dalle proxy senza errori
         const cleanCard = (c) => { 
             if (!c) return c;
             let newC = { ...c };
@@ -93,24 +93,14 @@
             decks: (rawCart.decks || []).map(d => ({ ...d, cards: (d.cards || []).map(cleanCard) })) 
         };
 
-        // 1. SALVATAGGIO IMMEDIATO (Non fa più da "tappo" aspettando le proxy)
+        // SALVATAGGIO IMMEDIATO DI MAZZI E CARRELLO (Niente più blocco Storage!)
         await db.collection('users').doc(uid).set({ 
             decks: decksToCloud, 
             cart: cartToCloud, 
             lastSync: new Date().toISOString() 
         }, { merge: true });
 
-        // 2. RECUPERO PROXY IN BACKGROUND (Silenzioso e separato)
-        let localProxies = [];
-        try { localProxies = JSON.parse(localStorage.getItem('mtg_proxies')) || []; } catch(e){}
-        localProxies.forEach(proxy => {
-             if (proxy && typeof proxy.proxyImage === 'string' && proxy.proxyImage.startsWith('data:image')) {
-                 syncSingleProxyToCloud(uid, proxy); // Nessun "await" qui!
-             }
-        });
-
       } catch (err) { 
-          // 3. ALLARME PARLANTE! Se Firebase fallisce, ora te lo dice in faccia.
           console.error("Errore salvataggio Firebase:", err);
           alert("Firebase ha bloccato il salvataggio!\nMotivo: " + err.message); 
       }
@@ -129,34 +119,16 @@
       } catch(err) { console.error("Errore syncFromCloud:", err); return false; }
     };
 
+    // --- FUNZIONI STORAGE DISATTIVATE ---
+    // Le svuotiamo per ingannare l'app: crederà di aver salvato/eliminato 
+    // la proxy nel cloud, ma l'operazione avverrà solo sul tuo telefono locale.
+    
     const syncSingleProxyToCloud = async (uid, proxy) => {
-      try {
-         if (!proxy || !proxy.id) return;
-         const storageRef = storage.ref(`users/${uid}/proxies/${proxy.id}.jpg`);
-         await storageRef.putString(proxy.proxyImage, 'data_url');
-         const downloadURL = await storageRef.getDownloadURL();
-         
-         const docRef = db.collection('users').doc(uid);
-         const doc = await docRef.get();
-         let cloudProxies = doc.exists && doc.data().proxies ? doc.data().proxies : [];
-         
-         cloudProxies = cloudProxies.filter(p => p && p.id !== proxy.id); 
-         cloudProxies.push({ ...proxy, proxyImage: downloadURL, image: downloadURL });
-         
-         await docRef.set({ proxies: cloudProxies }, { merge: true });
-      } catch (err) { console.error("Errore upload proxy:", err); }
+        // Disattivato: Proxy 100% locali
     };
 
     const deleteProxyFromCloud = async (uid, proxyId) => {
-      try {
-         const doc = await db.collection('users').doc(uid).get();
-         if(doc.exists && doc.data().proxies) {
-            const newProxies = doc.data().proxies.filter(p => p && p.id !== proxyId);
-            await db.collection('users').doc(uid).set({ proxies: newProxies }, { merge: true });
-         }
-         const storageRef = storage.ref(`users/${uid}/proxies/${proxyId}.jpg`);
-         await storageRef.delete().catch(()=>console.log("Immagine non trovata nello storage"));
-      } catch(err) { console.error("Errore delete proxy:", err); }
+        // Disattivato: Proxy 100% locali
     };
 
     const Icons = {
