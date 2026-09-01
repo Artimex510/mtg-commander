@@ -60,7 +60,8 @@
 
     const syncToCloud = async (uid) => {
       const decks = JSON.parse(localStorage.getItem('mtg_decks') || '[]');
-      await db.collection('users').doc(uid).set({ decks, lastSync: new Date().toISOString() }, { merge: true });
+      const cart = JSON.parse(localStorage.getItem('mtg_cart') || '{"singles":[], "decks":[], "lastUpdated":0}');
+      await db.collection('users').doc(uid).set({ decks, cart, lastSync: new Date().toISOString() }, { merge: true });
     };
 
     const syncFromCloud = async (uid) => {
@@ -68,6 +69,7 @@
       if(doc.exists) {
         const data = doc.data();
         if(data.decks) localStorage.setItem('mtg_decks', JSON.stringify(data.decks));
+        if(data.cart) localStorage.setItem('mtg_cart', JSON.stringify(data.cart));
         return true;
       }
       return false;
@@ -132,7 +134,10 @@
     const buildCardKey = (c) => c.name + (c.isCustom ? c.proxyImage : "") + c.id + !!c.isSideboard + !!c.isCommander + !!c.isCompanion;
     
     const addToCart = (type, item) => {
-        let cart = JSON.parse(localStorage.getItem('mtg_cart') || '{"singles":[], "decks":[]}');
+        let cart = JSON.parse(localStorage.getItem('mtg_cart') || '{"singles":[], "decks":[], "lastUpdated":0}');
+        if (!cart.singles) cart.singles = [];
+        if (!cart.decks) cart.decks = [];
+        
         if (type === 'single') {
             cart.singles.push(item);
             alert(`${item.name} aggiunto al Carrello!`);
@@ -140,7 +145,13 @@
             cart.decks.push(item);
             alert(`Mazzo "${item.name}" aggiunto al Carrello!`);
         }
+        
+        cart.lastUpdated = Date.now(); // Marca temporale aggiunta
         localStorage.setItem('mtg_cart', JSON.stringify(cart));
+        
+        // Sincronizza subito se l'utente è loggato
+        const user = firebase.auth().currentUser;
+        if (user) syncToCloud(user.uid).catch(e => console.error("Errore Sync Carrello:", e));
     };
     
     function App() {
@@ -159,15 +170,16 @@
                    localStorage.setItem('mtg_decks', JSON.stringify(data.decks));
                    window.dispatchEvent(new Event("cloud_sync_update"));
                 }
+                if (data.cart) {
+                   localStorage.setItem('mtg_cart', JSON.stringify(data.cart));
+                   window.dispatchEvent(new Event("cloud_cart_update"));
+                }
                 if (data.proxies) {
                    const localProxies = JSON.parse(localStorage.getItem('mtg_proxies') || '[]');
                    const localIds = new Set(localProxies.map(p => p.id));
                    let updated = false;
                    data.proxies.forEach(cp => {
-                      if (!localIds.has(cp.id)) {
-                         localProxies.push(cp);
-                         updated = true;
-                      }
+                      if (!localIds.has(cp.id)) { localProxies.push(cp); updated = true; }
                    });
                    if(updated) {
                       localStorage.setItem('mtg_proxies', JSON.stringify(localProxies));
@@ -336,14 +348,43 @@
     );
 
     const CartView = ({navigate}) => {
-      const [cart, setCart] = useState({singles: [], decks: []});
+      const [cart, setCart] = useState({singles: [], decks: [], lastUpdated: 0});
       const [tab, setTab] = useState('singles');
 
-      useEffect(() => { setCart(JSON.parse(localStorage.getItem('mtg_cart') || '{"singles":[], "decks":[]}')); }, []);
+      const checkAndLoadCart = () => {
+         let c = JSON.parse(localStorage.getItem('mtg_cart') || '{"singles":[], "decks":[], "lastUpdated":0}');
+         if (!c.singles) c.singles = []; if (!c.decks) c.decks = [];
+         
+         // Se il carrello è vecchio ma non aveva data, gli mettiamo la data di oggi per evitare che si cancelli all'istante
+         if (!c.lastUpdated) c.lastUpdated = Date.now();
+         
+         // Controllo 15 giorni in millisecondi (15 gg * 24 h * 60 m * 60 s * 1000 ms)
+         const QUINDICI_GIORNI = 15 * 24 * 60 * 60 * 1000;
+         
+         if ((Date.now() - c.lastUpdated > QUINDICI_GIORNI) && (c.singles.length > 0 || c.decks.length > 0)) {
+            c = { singles: [], decks: [], lastUpdated: Date.now() };
+            localStorage.setItem('mtg_cart', JSON.stringify(c));
+            const user = firebase.auth().currentUser;
+            if (user) syncToCloud(user.uid);
+            alert("🧹 Il carrello è stato svuotato automaticamente perché è rimasto inattivo per oltre 15 giorni.");
+         }
+         setCart(c);
+      };
+
+      useEffect(() => { 
+         checkAndLoadCart();
+         window.addEventListener("cloud_cart_update", checkAndLoadCart);
+         return () => window.removeEventListener("cloud_cart_update", checkAndLoadCart);
+      }, []);
 
       const remove = (type, index) => {
          let newCart = {...cart}; newCart[type].splice(index, 1);
-         setCart(newCart); localStorage.setItem('mtg_cart', JSON.stringify(newCart));
+         newCart.lastUpdated = Date.now(); // Aggiorna il timer
+         setCart(newCart); 
+         localStorage.setItem('mtg_cart', JSON.stringify(newCart));
+         
+         const user = firebase.auth().currentUser;
+         if (user) syncToCloud(user.uid);
       };
 
       const checkoutSingles = () => {
