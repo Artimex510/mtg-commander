@@ -59,9 +59,39 @@
     const storage = firebase.storage();
 
     const syncToCloud = async (uid) => {
-      const decks = JSON.parse(localStorage.getItem('mtg_decks') || '[]');
-      const cart = JSON.parse(localStorage.getItem('mtg_cart') || '{"singles":[], "decks":[], "lastUpdated":0}');
-      await db.collection('users').doc(uid).set({ decks, cart, lastSync: new Date().toISOString() }, { merge: true });
+      try {
+        const rawDecks = JSON.parse(localStorage.getItem('mtg_decks') || '[]');
+        
+        // Funzione per ripulire le carte dai Base64 pesanti (immagini proxy)
+        const cleanCard = (c) => {
+           if (c.isCustom && c.proxyImage && c.proxyImage.startsWith('data:image')) {
+               return { ...c, proxyImage: "", image: "" };
+           }
+           return c;
+        };
+
+        // 1. Puliamo i mazzi
+        const decksToCloud = rawDecks.map(deck => ({
+           ...deck,
+           cards: deck.cards.map(cleanCard)
+        }));
+
+        // 2. Puliamo il carrello! (Era lui il colpevole dei crash)
+        const rawCart = JSON.parse(localStorage.getItem('mtg_cart') || '{"singles":[], "decks":[], "lastUpdated":0}');
+        const cartToCloud = {
+            ...rawCart,
+            singles: (rawCart.singles || []).map(cleanCard),
+            decks: (rawCart.decks || []).map(d => ({
+                ...d,
+                cards: (d.cards || []).map(cleanCard)
+            }))
+        };
+
+        await db.collection('users').doc(uid).set({ decks: decksToCloud, cart: cartToCloud, lastSync: new Date().toISOString() }, { merge: true });
+      } catch (err) {
+        console.error("Errore salvataggio su Firebase:", err);
+        // Se succede qualcosa, ora almeno l'app ce lo dice invece di cancellare il mazzo in silenzio!
+      }
     };
 
     const syncFromCloud = async (uid) => {
