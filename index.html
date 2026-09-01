@@ -200,13 +200,16 @@
                    data.proxies.forEach(cp => {
                       const existingIndex = localProxies.findIndex(p => p.id === cp.id);
                       if (existingIndex === -1) {
-                          // Se la proxy è sul Cloud ma non sul telefono, la scarica!
                           localProxies.push(cp); 
                           updated = true; 
-                      } else if (localProxies[existingIndex].proxyImage.startsWith('data:image') && cp.proxyImage.startsWith('http')) {
-                          // Se il telefono ha l'immagine pesante e il cloud ha il link leggero, sostituisce per fare spazio!
-                          localProxies[existingIndex] = cp; 
-                          updated = true; 
+                      } else {
+                          // FIX: Controlli di sicurezza aggiunti qui per evitare lo schermo nero!
+                          const localImg = localProxies[existingIndex].proxyImage || "";
+                          const cloudImg = cp.proxyImage || "";
+                          if (localImg.startsWith('data:image') && cloudImg.startsWith('http')) {
+                              localProxies[existingIndex] = cp; 
+                              updated = true; 
+                          }
                       }
                    });
                    if(updated) {
