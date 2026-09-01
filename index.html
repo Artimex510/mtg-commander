@@ -172,7 +172,10 @@
     function App() {
       const [introState, setIntroState] = useState('initial');
       const [currentUser, setCurrentUser] = useState(null);
-
+      const [view, setView] = useState('home');
+      const [menuOpen, setMenuOpen] = useState(false);
+      const [activeDeck, setActiveDeck] = useState(null);
+      
       useEffect(() => {
         let unsubscribeSnapshot = null;
         const unsubscribeAuth = auth.onAuthStateChanged(u => {
