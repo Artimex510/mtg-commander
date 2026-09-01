@@ -194,18 +194,22 @@
                    window.dispatchEvent(new Event("cloud_cart_update"));
                 }
 
-                if (data.proxies) {
+                if (Array.isArray(data.proxies)) {
                    let localProxies = JSON.parse(localStorage.getItem('mtg_proxies') || '[]');
                    let updated = false;
                    data.proxies.forEach(cp => {
-                      const existingIndex = localProxies.findIndex(p => p.id === cp.id);
+                      if (!cp || !cp.id) return; // Salta proxy danneggiate o nulle
+                      
+                      const existingIndex = localProxies.findIndex(p => p && p.id === cp.id);
                       if (existingIndex === -1) {
                           localProxies.push(cp); 
                           updated = true; 
                       } else {
-                          // FIX: Controlli di sicurezza aggiunti qui per evitare lo schermo nero!
-                          const localImg = localProxies[existingIndex].proxyImage || "";
-                          const cloudImg = cp.proxyImage || "";
+                          // Estrazione iper-sicura delle immagini
+                          const localProxy = localProxies[existingIndex];
+                          const localImg = (localProxy && typeof localProxy.proxyImage === 'string') ? localProxy.proxyImage : "";
+                          const cloudImg = (cp && typeof cp.proxyImage === 'string') ? cp.proxyImage : "";
+                          
                           if (localImg.startsWith('data:image') && cloudImg.startsWith('http')) {
                               localProxies[existingIndex] = cp; 
                               updated = true; 
