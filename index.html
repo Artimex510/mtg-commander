@@ -62,51 +62,38 @@
       try {
         const rawDecks = JSON.parse(localStorage.getItem('mtg_decks') || '[]');
         
-        // BLINDATURA: Elimina qualsiasi immagine base64 gigante (anche se perdesse l'etichetta isCustom)
+        // Pulizia iper-sicura dei base64 per evitare il blocco di 1MB di Firebase
         const cleanCard = (c) => { 
+            if (!c) return c;
             if (c.isCustom || (c.proxyImage && c.proxyImage.startsWith('data:image')) || (c.image && c.image.startsWith('data:image'))) { 
                 return { ...c, proxyImage: "", image: "" }; 
             } 
             return c; 
         };
         
-        const decksToCloud = rawDecks.map(deck => ({ ...deck, cards: deck.cards.map(cleanCard) }));
+        const decksToCloud = rawDecks.map(deck => ({ ...deck, cards: (deck.cards || []).map(cleanCard) }));
         const rawCart = JSON.parse(localStorage.getItem('mtg_cart') || '{"singles":[], "decks":[], "lastUpdated":0}');
-        const cartToCloud = { ...rawCart, singles: (rawCart.singles || []).map(cleanCard), decks: (rawCart.decks || []).map(d => ({ ...d, cards: (d.cards || []).map(cleanCard) })) };
-
-        // Abbiamo eliminato il loop che intasava Firebase! Le proxy vanno su solo ed esclusivamente quando le crei nell'Editor.
+        const cartToCloud = { 
+            ...rawCart, 
+            singles: (rawCart.singles || []).map(cleanCard), 
+            decks: (rawCart.decks || []).map(d => ({ ...d, cards: (d.cards || []).map(cleanCard) })) 
+        };
 
         await db.collection('users').doc(uid).set({ decks: decksToCloud, cart: cartToCloud, lastSync: new Date().toISOString() }, { merge: true });
       } catch (err) { console.error("Errore salvataggio su Firebase:", err); }
     };
 
-    const syncSingleProxyToCloud = async (uid, proxy) => {
-      try {
-         const storageRef = storage.ref(`users/${uid}/proxies/${proxy.id}.jpg`);
-         await storageRef.putString(proxy.proxyImage, 'data_url');
-         const downloadURL = await storageRef.getDownloadURL();
-         const cloudProxy = { ...proxy, proxyImage: downloadURL, image: downloadURL };
-         
-         const doc = await db.collection('users').doc(uid).get();
-         let cloudProxies = doc.exists && doc.data().proxies ? doc.data().proxies : [];
-         
-         // DEDUPLICAZIONE: Impedisce categoricamente che la stessa proxy si duplichi nell'array del Cloud
-         cloudProxies = cloudProxies.filter(p => p.id !== proxy.id);
-         cloudProxies.push(cloudProxy);
-         
-         await db.collection('users').doc(uid).set({ proxies: cloudProxies }, { merge: true });
-      } catch (err) { console.error("Errore upload proxy:", err); }
-    };
-
     const syncFromCloud = async (uid) => {
-      const doc = await db.collection('users').doc(uid).get();
-      if(doc.exists) {
-        const data = doc.data();
-        if(data.decks) localStorage.setItem('mtg_decks', JSON.stringify(data.decks));
-        if(data.cart) localStorage.setItem('mtg_cart', JSON.stringify(data.cart));
-        return true;
-      }
-      return false;
+      try {
+          const doc = await db.collection('users').doc(uid).get();
+          if(doc.exists) {
+            const data = doc.data();
+            if(data.decks) localStorage.setItem('mtg_decks', JSON.stringify(data.decks));
+            if(data.cart) localStorage.setItem('mtg_cart', JSON.stringify(data.cart));
+            return true;
+          }
+          return false;
+      } catch(err) { console.error("Errore syncFromCloud:", err); return false; }
     };
 
     const syncSingleProxyToCloud = async (uid, proxy) => {
@@ -114,11 +101,16 @@
          const storageRef = storage.ref(`users/${uid}/proxies/${proxy.id}.jpg`);
          await storageRef.putString(proxy.proxyImage, 'data_url');
          const downloadURL = await storageRef.getDownloadURL();
-         const cloudProxy = { ...proxy, proxyImage: downloadURL, image: downloadURL };
-         const doc = await db.collection('users').doc(uid).get();
+         
+         const docRef = db.collection('users').doc(uid);
+         const doc = await docRef.get();
          let cloudProxies = doc.exists && doc.data().proxies ? doc.data().proxies : [];
-         cloudProxies.push(cloudProxy);
-         await db.collection('users').doc(uid).set({ proxies: cloudProxies }, { merge: true });
+         
+         // Previene la duplicazione ciclica (quella che ha bloccato Firebase stamattina)
+         cloudProxies = cloudProxies.filter(p => p && p.id !== proxy.id); 
+         cloudProxies.push({ ...proxy, proxyImage: downloadURL, image: downloadURL });
+         
+         await docRef.set({ proxies: cloudProxies }, { merge: true });
       } catch (err) { console.error("Errore upload proxy:", err); }
     };
 
@@ -126,13 +118,14 @@
       try {
          const doc = await db.collection('users').doc(uid).get();
          if(doc.exists && doc.data().proxies) {
-            const newProxies = doc.data().proxies.filter(p => p.id !== proxyId);
+            const newProxies = doc.data().proxies.filter(p => p && p.id !== proxyId);
             await db.collection('users').doc(uid).set({ proxies: newProxies }, { merge: true });
          }
          const storageRef = storage.ref(`users/${uid}/proxies/${proxyId}.jpg`);
-         await storageRef.delete().catch(()=>console.log("Immagine rimossa"));
+         await storageRef.delete().catch(()=>console.log("Immagine non trovata nello storage"));
       } catch(err) { console.error("Errore delete proxy:", err); }
     };
+
     const Icons = {
       Menu: () => <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16"/></svg>,
       Home: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 001 1m-6 0h6"/></svg>,
