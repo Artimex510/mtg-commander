@@ -2447,11 +2447,22 @@
                  
                  {/* ZONA SCANNER */}
                  <div className="bg-indigo-900/30 border border-indigo-500 p-4 rounded-xl mb-6 shadow-inner text-center">
-                    <p className="text-indigo-200 text-xs font-bold mb-3">Punta la fotocamera sul TITOLO della carta (o caricala dalla galleria) per riconoscerla automaticamente!</p>
-                    <label className="block w-full bg-indigo-600 hover:bg-indigo-500 text-white font-black py-4 rounded-xl cursor-pointer shadow-[0_0_15px_rgba(79,70,229,0.5)] transition-all">
-                       📸 SCANNERIZZA CARTA
-                       <input type="file" accept="image/*" className="hidden" onChange={handleScan} />
-                    </label>
+                    <p className="text-indigo-200 text-xs font-bold mb-3">Scegli come inquadrare il TITOLO della carta per riconoscerla automaticamente!</p>
+                    <div className="flex gap-3">
+                       {/* Pulsante per forzare la fotocamera (capture="environment" apre la camera posteriore) */}
+                       <label className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-black py-3 rounded-xl cursor-pointer shadow-[0_0_15px_rgba(79,70,229,0.5)] transition-all flex flex-col items-center justify-center">
+                          <span className="text-2xl mb-1">📸</span>
+                          <span className="text-xs">FOTOCAMERA</span>
+                          <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleScan} />
+                       </label>
+                       
+                       {/* Pulsante per aprire la galleria standard */}
+                       <label className="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-black py-3 rounded-xl cursor-pointer shadow-[0_0_15px_rgba(147,51,234,0.5)] transition-all flex flex-col items-center justify-center">
+                          <span className="text-2xl mb-1">🖼️</span>
+                          <span className="text-xs">GALLERIA</span>
+                          <input type="file" accept="image/*" className="hidden" onChange={handleScan} />
+                       </label>
+                    </div>
                     {isScanning && <p className="text-yellow-400 font-black text-sm mt-3 animate-pulse">{scanProgress}</p>}
                  </div>
 
