@@ -60,26 +60,48 @@
 
     const syncToCloud = async (uid) => {
       try {
-        const rawDecks = JSON.parse(localStorage.getItem('mtg_decks') || '[]');
-        
-        // Pulizia iper-sicura dei base64 per evitare il blocco di 1MB di Firebase
+        let rawDecks = [];
+        try { rawDecks = JSON.parse(localStorage.getItem('mtg_decks')) || []; } catch(e){}
+        if (!Array.isArray(rawDecks)) rawDecks = [];
+
+        // Filtro ultra-sicuro per togliere il peso dalle proxy senza andare in errore
         const cleanCard = (c) => { 
             if (!c) return c;
-            if (c.isCustom || (c.proxyImage && c.proxyImage.startsWith('data:image')) || (c.image && c.image.startsWith('data:image'))) { 
-                return { ...c, proxyImage: "", image: "" }; 
+            let newC = { ...c };
+            if (newC.isCustom || 
+               (typeof newC.proxyImage === 'string' && newC.proxyImage.startsWith('data:image')) || 
+               (typeof newC.image === 'string' && newC.image.startsWith('data:image'))) { 
+                newC.proxyImage = ""; 
+                newC.image = ""; 
             } 
-            return c; 
+            return newC; 
         };
         
         const decksToCloud = rawDecks.map(deck => ({ ...deck, cards: (deck.cards || []).map(cleanCard) }));
-        const rawCart = JSON.parse(localStorage.getItem('mtg_cart') || '{"singles":[], "decks":[], "lastUpdated":0}');
+        
+        let rawCart = { singles: [], decks: [], lastUpdated: 0 };
+        try { 
+            const parsedCart = JSON.parse(localStorage.getItem('mtg_cart'));
+            if (parsedCart && typeof parsedCart === 'object') rawCart = { ...rawCart, ...parsedCart };
+        } catch(e){}
+        
         const cartToCloud = { 
             ...rawCart, 
             singles: (rawCart.singles || []).map(cleanCard), 
             decks: (rawCart.decks || []).map(d => ({ ...d, cards: (d.cards || []).map(cleanCard) })) 
         };
 
+        // Carica in sicurezza le vecchie proxy rimaste bloccate offline
+        let localProxies = [];
+        try { localProxies = JSON.parse(localStorage.getItem('mtg_proxies')) || []; } catch(e){}
+        for (const proxy of localProxies) {
+             if (proxy && typeof proxy.proxyImage === 'string' && proxy.proxyImage.startsWith('data:image')) {
+                 await syncSingleProxyToCloud(uid, proxy);
+             }
+        }
+
         await db.collection('users').doc(uid).set({ decks: decksToCloud, cart: cartToCloud, lastSync: new Date().toISOString() }, { merge: true });
+        
       } catch (err) { console.error("Errore salvataggio su Firebase:", err); }
     };
 
@@ -98,6 +120,7 @@
 
     const syncSingleProxyToCloud = async (uid, proxy) => {
       try {
+         if (!proxy || !proxy.id) return;
          const storageRef = storage.ref(`users/${uid}/proxies/${proxy.id}.jpg`);
          await storageRef.putString(proxy.proxyImage, 'data_url');
          const downloadURL = await storageRef.getDownloadURL();
@@ -106,7 +129,7 @@
          const doc = await docRef.get();
          let cloudProxies = doc.exists && doc.data().proxies ? doc.data().proxies : [];
          
-         // Previene la duplicazione ciclica (quella che ha bloccato Firebase stamattina)
+         // DEDUPLICAZIONE: previene il loop che ha bloccato Firebase stamattina a 1MB!
          cloudProxies = cloudProxies.filter(p => p && p.id !== proxy.id); 
          cloudProxies.push({ ...proxy, proxyImage: downloadURL, image: downloadURL });
          
